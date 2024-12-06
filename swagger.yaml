@@ -1,0 +1,177 @@
+openapi: 3.0.0
+info:
+  title: Webser2 API
+  description: Web servisi analitik ve izleme API'si
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+
+components:
+  schemas:
+    DateRange:
+      type: object
+      properties:
+        startDate:
+          type: string
+          format: date
+          example: "2024-01-01"
+        endDate:
+          type: string
+          format: date
+          example: "2024-01-31"
+
+    AnalyticsResponse:
+      type: object
+      properties:
+        totalRequests:
+          type: array
+          items:
+            type: object
+            properties:
+              count:
+                type: integer
+                example: 1000
+        requestsByEndpoint:
+          type: array
+          items:
+            type: object
+            properties:
+              endpoint:
+                type: string
+                example: "/api/users"
+              count:
+                type: integer
+                example: 500
+        requestsByStatus:
+          type: array
+          items:
+            type: object
+            properties:
+              status_code:
+                type: integer
+                example: 200
+              count:
+                type: integer
+                example: 800
+        averageResponseTime:
+          type: array
+          items:
+            type: object
+            properties:
+              avg_response_time:
+                type: number
+                format: float
+                example: 150.5
+        errorRates:
+          type: array
+          items:
+            type: object
+            properties:
+              endpoint:
+                type: string
+                example: "/api/users"
+              total_requests:
+                type: integer
+                example: 1000
+              error_count:
+                type: integer
+                example: 50
+              error_rate:
+                type: number
+                format: float
+                example: 5.00
+
+paths:
+  /api/analytics:
+    get:
+      summary: Analitik verilerini getir
+      description: Belirtilen tarih aralığı için analitik verilerini döndürür
+      parameters:
+        - in: query
+          name: range
+          schema:
+            type: string
+            enum: [today, week, month]
+          description: Önceden tanımlanmış zaman aralığı
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+          description: Özel tarih aralığı başlangıcı
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+          description: Özel tarih aralığı sonu
+      responses:
+        '200':
+          description: Başarılı
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsResponse'
+        '400':
+          description: Geçersiz istek
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Invalid date range"
+        '500':
+          description: Sunucu hatası
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Internal server error"
+
+  /api/rate-limits:
+    get:
+      summary: Rate limit bilgilerini getir
+      description: Mevcut rate limit durumunu ve kullanım istatistiklerini döndürür
+      responses:
+        '200':
+          description: Başarılı
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  limits:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                          example: "default"
+                        limit:
+                          type: integer
+                          example: 100
+                        remaining:
+                          type: integer
+                          example: 95
+                        resetTime:
+                          type: string
+                          format: date-time
+                          example: "2024-01-01T00:00:00Z"
+        '500':
+          description: Sunucu hatası
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Internal server error"

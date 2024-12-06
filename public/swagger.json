@@ -1,0 +1,539 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "SQL Query API",
+    "description": "API for executing SQL queries",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "Development server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "Query": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "SQL query to execute",
+            "example": "SELECT * FROM efr_users"
+          }
+        }
+      },
+      "JobResponse": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "Unique job identifier"
+          }
+        }
+      },
+      "JobStatus": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "completed", "failed"],
+            "description": "Current status of the job"
+          },
+          "startTime": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Job start time"
+          },
+          "endTime": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Job completion time"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if job failed"
+          }
+        }
+      },
+      "AnalyticsResponse": {
+        "type": "object",
+        "properties": {
+          "totalRequests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "count": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              }
+            }
+          },
+          "requestsByEndpoint": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "endpoint": {
+                  "type": "string",
+                  "example": "/api/users"
+                },
+                "count": {
+                  "type": "integer",
+                  "example": 500
+                }
+              }
+            }
+          },
+          "requestsByStatus": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "status_code": {
+                  "type": "integer",
+                  "example": 200
+                },
+                "count": {
+                  "type": "integer",
+                  "example": 800
+                }
+              }
+            }
+          },
+          "averageResponseTime": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "avg_response_time": {
+                  "type": "number",
+                  "format": "float",
+                  "example": 150.5
+                }
+              }
+            }
+          },
+          "errorRates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "endpoint": {
+                  "type": "string",
+                  "example": "/api/users"
+                },
+                "total_requests": {
+                  "type": "integer",
+                  "example": 1000
+                },
+                "error_count": {
+                  "type": "integer",
+                  "example": 50
+                },
+                "error_rate": {
+                  "type": "number",
+                  "format": "float",
+                  "example": 5.00
+                }
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Error message"
+          }
+        }
+      },
+      "QueryResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "description": "Query results"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/query": {
+      "post": {
+        "summary": "Execute SQL query (synchronous)",
+        "description": "Execute a SQL query and return the results immediately",
+        "operationId": "executeQuery",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Query"
+              },
+              "example": {
+                "query": "SELECT * FROM efr_users"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Query executed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bigquery": {
+      "post": {
+        "summary": "Execute SQL query (asynchronous)",
+        "description": "Submit a SQL query for asynchronous execution",
+        "operationId": "submitQuery",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Query"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Query submitted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/job/status/{jobId}": {
+      "get": {
+        "summary": "Get job status",
+        "description": "Get the current status of a query job",
+        "operationId": "getJobStatus",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Job identifier"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/job/result/{jobId}": {
+      "get": {
+        "summary": "Download job results",
+        "description": "Download the query results as a ZIP file containing CSV",
+        "operationId": "downloadJobResults",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Job identifier"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Results downloaded successfully",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analytics": {
+      "get": {
+        "summary": "Get analytics data",
+        "description": "Get analytics data for the specified time range",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "range",
+            "schema": {
+              "type": "string",
+              "enum": ["today", "week", "month"]
+            },
+            "description": "Predefined time range"
+          },
+          {
+            "in": "query",
+            "name": "startDate",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Custom range start date"
+          },
+          {
+            "in": "query",
+            "name": "endDate",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Custom range end date"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Invalid date range"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rate-limits": {
+      "get": {
+        "summary": "Get rate limit information",
+        "description": "Get current rate limit status and usage statistics",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "limits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "example": "default"
+                          },
+                          "limit": {
+                            "type": "integer",
+                            "example": 100
+                          },
+                          "remaining": {
+                            "type": "integer",
+                            "example": 95
+                          },
+                          "resetTime": {
+                            "type": "string",
+                            "format": "date-time",
+                            "example": "2024-01-01T00:00:00Z"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
