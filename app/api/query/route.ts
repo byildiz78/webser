@@ -2,12 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 import { verifyApiKey } from '@/lib/auth';
 import { logApiRequest } from '@/lib/logger';
-import { rateLimit } from '@/lib/rate-limit';
-import { addBigQueryJob } from '@/lib/queue';
+import { getCachedQueryResult, cacheQueryResult } from '@/lib/redis';
 import { randomUUID } from 'crypto';
 
 export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
     const startTime = Date.now();
@@ -34,26 +32,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(responseBody, { status: 401 });
         }
 
-        // Rate limiting
-        const identifier = clientIp || 'anonymous';
-        const { success } = await rateLimit(identifier);
-        if (!success) {
-            const responseBody = { error: 'Too many requests' };
-            await logApiRequest({
-                endpoint: '/api/query',
-                apiKey: apiKey || '',
-                method: 'POST',
-                responseBody,
-                responseTimeMs: Date.now() - startTime,
-                statusCode: 429,
-                clientIp,
-                userAgent
-            });
-            return NextResponse.json(responseBody, { status: 429 });
-        }
-
         const body = await request.json();
-        const { query, parameters } = body;
+        const { query, parameters, skipCache } = body;
 
         if (!query) {
             const responseBody = { error: 'Query is required' };
@@ -71,25 +51,47 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(responseBody, { status: 400 });
         }
 
-        // Sorguyu kuyruğa ekle
-        const jobId = randomUUID();
-        const job = await addBigQueryJob({
-            jobId,
-            query,
-            parameters,
-            requestInfo: {
-                apiKey,
-                clientIp,
-                userAgent,
-                timestamp: new Date(),
-                endpoint: '/api/query'
+        // Cache'den sonuç kontrolü
+        let result;
+        if (!skipCache) {
+            result = await getCachedQueryResult(query, parameters);
+            if (result) {
+                const responseBody = {
+                    status: 'completed',
+                    result,
+                    fromCache: true
+                };
+
+                await logApiRequest({
+                    endpoint: '/api/query',
+                    apiKey: apiKey || '',
+                    method: 'POST',
+                    requestBody: body,
+                    responseBody,
+                    responseTimeMs: Date.now() - startTime,
+                    statusCode: 200,
+                    clientIp,
+                    userAgent,
+                    queryText: query,
+                    cacheHit: true
+                });
+
+                return NextResponse.json(responseBody, { status: 200 });
             }
-        });
+        }
+
+        // Cache'de yoksa veya cache atlanmışsa sorguyu çalıştır
+        result = await executeQuery(query, parameters);
+
+        // Sonucu cache'e kaydet (skipCache false ise)
+        if (!skipCache) {
+            await cacheQueryResult(query, parameters, result);
+        }
 
         const responseBody = {
-            jobId: job.id,
-            status: 'queued',
-            message: 'Query has been queued for processing'
+            status: 'completed',
+            result,
+            fromCache: false
         };
 
         await logApiRequest({
@@ -99,13 +101,14 @@ export async function POST(request: NextRequest) {
             requestBody: body,
             responseBody,
             responseTimeMs: Date.now() - startTime,
-            statusCode: 202,
+            statusCode: 200,
             clientIp,
             userAgent,
-            queryText: query
+            queryText: query,
+            cacheHit: false
         });
 
-        return NextResponse.json(responseBody, { status: 202 });
+        return NextResponse.json(responseBody, { status: 200 });
     } catch (error: any) {
         console.error('Error in query endpoint:', error);
         const responseBody = { error: error.message || 'Internal server error' };

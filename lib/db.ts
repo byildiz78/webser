@@ -13,6 +13,16 @@ const config: sql.config = {
     connectTimeout: 30000,
     requestTimeout: 30000,
   },
+  pool: {
+    max: 50, // maksimum bağlantı sayısı
+    min: 10, // minimum bağlantı sayısı
+    idleTimeoutMillis: 30000, // boşta bekleyen bağlantıların timeout süresi
+    acquireTimeoutMillis: 30000, // yeni bağlantı alma timeout süresi
+    createTimeoutMillis: 30000, // yeni bağlantı oluşturma timeout süresi
+    destroyTimeoutMillis: 5000, // bağlantı kapatma timeout süresi
+    reapIntervalMillis: 1000, // havuz temizleme kontrol aralığı
+    createRetryIntervalMillis: 200, // bağlantı oluşturma yeniden deneme aralığı
+  }
 };
 
 let pool: sql.ConnectionPool | null = null;
@@ -24,10 +34,21 @@ export async function getConnection() {
         server: config.server,
         port: config.port,
         database: config.database,
-        user: config.user
+        user: config.user,
+        poolConfig: config.pool
       });
       
       pool = await new sql.ConnectionPool(config).connect();
+      
+      // Pool events
+      pool.on('error', err => {
+        console.error('Pool error:', err);
+      });
+
+      pool.on('connect', () => {
+        console.log('New connection established in pool');
+      });
+
       console.log('Successfully connected to database');
       
       // Initialize log table on first connection
@@ -35,6 +56,13 @@ export async function getConnection() {
       await initializeLogTable();
       console.log('Log table initialization completed');
     }
+
+    // Pool durumunu kontrol et
+    if (!pool.connected) {
+      console.log('Pool disconnected, reconnecting...');
+      await pool.connect();
+    }
+
     return pool;
   } catch (error) {
     console.error('Failed to create connection pool:', error);
@@ -43,28 +71,44 @@ export async function getConnection() {
 }
 
 export async function executeQuery<T>(query: string, params?: Record<string, any>): Promise<T> {
-  try {
-    const pool = await getConnection();
-    const request = pool.request();
+  let retries = 3;
+  let lastError: any;
 
-    // Add parameters if provided
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        request.input(key, value);
-      });
+  while (retries > 0) {
+    try {
+      const pool = await getConnection();
+      const request = pool.request();
+
+      // Add parameters if provided
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          request.input(key, value);
+        });
+      }
+
+      console.log('Executing query:', query);
+      if (params) {
+        console.log('With parameters:', params);
+      }
+
+      const result = await request.query(query);
+      return result.recordset as T;
+    } catch (error: any) {
+      lastError = error;
+      retries--;
+
+      if (error.code === 'ECONNRESET' || error.code === 'PROTOCOL_SEQUENCE_TIMEOUT') {
+        console.log(`Connection error, retrying... (${retries} attempts left)`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 1 saniye bekle
+        continue;
+      }
+
+      console.error('Error executing query:', error);
+      throw error;
     }
-
-    console.log('Executing query:', query);
-    if (params) {
-      console.log('With parameters:', params);
-    }
-
-    const result = await request.query(query);
-    return result.recordset;
-  } catch (error) {
-    console.error('Error executing query:', error);
-    throw error;
   }
+
+  throw lastError;
 }
 
 export async function testConnection() {
