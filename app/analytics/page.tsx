@@ -23,6 +23,7 @@ import {
 } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import SystemStatus from '../components/SystemStatus';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
@@ -630,6 +631,7 @@ const AnalyticsPage = () => {
                             </div>
                         </div>
                     </div>
+                    <SystemStatus />
                 </div>
             </div>
         </div>

@@ -3,20 +3,19 @@ import { executeQuery } from '@/lib/db';
 import { verifyApiKey } from '@/lib/auth';
 import { logApiRequest } from '@/lib/logger';
 import { rateLimit } from '@/lib/rate-limit';
+import { addBigQueryJob } from '@/lib/queue';
+import { randomUUID } from 'crypto';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
     const startTime = Date.now();
-    // API key'i header'dan al
     const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.split(' ')[1];
     const clientIp = request.headers.get('x-forwarded-for') || request.ip;
     const userAgent = request.headers.get('user-agent');
 
     try {
-        console.log('Received headers:', Object.fromEntries(request.headers.entries()));
-        
         // Verify API key
         const keyVerification = await verifyApiKey(apiKey);
         if (!keyVerification.isValid) {
@@ -54,7 +53,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { query } = body;
+        const { query, parameters } = body;
 
         if (!query) {
             const responseBody = { error: 'Query is required' };
@@ -67,16 +66,32 @@ export async function POST(request: NextRequest) {
                 responseTimeMs: Date.now() - startTime,
                 statusCode: 400,
                 clientIp,
-                userAgent,
-                queryText: query
+                userAgent
             });
             return NextResponse.json(responseBody, { status: 400 });
         }
 
-        // Execute query
-        const result = await executeQuery(query);
+        // Sorguyu kuyruğa ekle
+        const jobId = randomUUID();
+        const job = await addBigQueryJob({
+            jobId,
+            query,
+            parameters,
+            requestInfo: {
+                apiKey,
+                clientIp,
+                userAgent,
+                timestamp: new Date(),
+                endpoint: '/api/query'
+            }
+        });
 
-        const responseBody = { data: result };
+        const responseBody = {
+            jobId: job.id,
+            status: 'queued',
+            message: 'Query has been queued for processing'
+        };
+
         await logApiRequest({
             endpoint: '/api/query',
             apiKey: apiKey || '',
@@ -84,17 +99,16 @@ export async function POST(request: NextRequest) {
             requestBody: body,
             responseBody,
             responseTimeMs: Date.now() - startTime,
-            statusCode: 200,
+            statusCode: 202,
             clientIp,
             userAgent,
-            queryText: query,
-            affectedRows: Array.isArray(result) ? result.length : 0
+            queryText: query
         });
 
-        return NextResponse.json(responseBody);
+        return NextResponse.json(responseBody, { status: 202 });
     } catch (error: any) {
         console.error('Error in query endpoint:', error);
-        const responseBody = { error: error.message };
+        const responseBody = { error: error.message || 'Internal server error' };
         
         await logApiRequest({
             endpoint: '/api/query',
@@ -103,10 +117,9 @@ export async function POST(request: NextRequest) {
             responseBody,
             responseTimeMs: Date.now() - startTime,
             statusCode: 500,
-            errorMessage: error.message,
             clientIp,
             userAgent,
-            queryText: body?.query
+            errorMessage: error.message
         });
 
         return NextResponse.json(responseBody, { status: 500 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 import { verifyApiKey } from '@/lib/auth';
+import { addAnalyticsJob } from '@/lib/queue';
 
 interface DateRange {
     startDate: string;
@@ -151,43 +152,49 @@ async function getAnalytics(range: string | DateRange) {
 export async function GET(request: NextRequest) {
     const startTime = Date.now();
     const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.split(' ')[1];
+    const clientIp = request.headers.get('x-forwarded-for') || request.ip;
+    const userAgent = request.headers.get('user-agent');
 
     try {
         // Verify API key
         const keyVerification = await verifyApiKey(apiKey);
         if (!keyVerification.isValid) {
-            return NextResponse.json(
-                { error: keyVerification.error || 'Invalid API key' },
-                { status: 401 }
-            );
+            return NextResponse.json({ error: keyVerification.error || 'Invalid API key' }, { status: 401 });
         }
 
         const searchParams = request.nextUrl.searchParams;
-        const range = searchParams.get('range') || 'today';
-        let dateRange: string | DateRange = range;
+        const range = searchParams.get('range');
+        const startDate = searchParams.get('startDate');
+        const endDate = searchParams.get('endDate');
 
-        if (range === 'custom') {
-            const startDate = searchParams.get('startDate');
-            const endDate = searchParams.get('endDate');
-            
-            if (!startDate || !endDate) {
-                return NextResponse.json(
-                    { error: 'Start date and end date are required for custom range' },
-                    { status: 400 }
-                );
-            }
-
+        let dateRange: string | DateRange = range || '';
+        if (startDate && endDate) {
             dateRange = { startDate, endDate };
         }
 
-        const analytics = await getAnalytics(dateRange);
-        return NextResponse.json(analytics);
+        // Analytics işini kuyruğa ekle
+        const jobData = {
+            range: dateRange,
+            requestInfo: {
+                apiKey,
+                clientIp,
+                userAgent,
+                timestamp: new Date(),
+            }
+        };
+        
+        const job = await addAnalyticsJob(jobData);
+        
+        // Analitik verilerini getir
+        const results = await getAnalytics(dateRange);
+        
+        return NextResponse.json({
+            ...results,
+            jobId: job.id, // İş takibi için jobId döndür
+        });
     } catch (error: any) {
         console.error('Error in analytics endpoint:', error);
-        return NextResponse.json(
-            { error: error.message },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
     }
 }
 

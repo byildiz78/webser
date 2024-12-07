@@ -4,9 +4,7 @@ import { verifyApiKey } from '@/lib/auth';
 import { randomUUID } from 'crypto';
 import { logApiRequest } from '@/lib/logger';
 import { rateLimit } from '@/lib/rate-limit';
-
-// In-memory job storage (should be replaced with Redis or DB in production)
-const jobs = new Map<string, any>();
+import { addBigQueryJob } from '@/lib/queue';
 
 export async function POST(request: NextRequest) {
     const startTime = Date.now();
@@ -15,8 +13,6 @@ export async function POST(request: NextRequest) {
     const userAgent = request.headers.get('user-agent');
     
     try {
-        console.log('Received headers:', Object.fromEntries(request.headers.entries()));
-        
         // Verify API key
         const keyVerification = await verifyApiKey(apiKey);
         if (!keyVerification.isValid) {
@@ -54,79 +50,43 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { query } = body;
-
-        if (!query) {
-            const responseBody = { error: 'Query is required' };
-            await logApiRequest({
-                endpoint: '/api/bigquery',
-                apiKey: apiKey || '',
-                method: 'POST',
-                requestBody: body,
-                responseBody,
-                responseTimeMs: Date.now() - startTime,
-                statusCode: 400,
-                clientIp,
-                userAgent,
-                queryText: query
-            });
-            return NextResponse.json(responseBody, { status: 400 });
-        }
-
-        // Generate a unique job ID
         const jobId = randomUUID();
 
-        // Store job information
-        jobs.set(jobId, {
-            status: 'pending',
-            query,
-            startTime: new Date(),
-            result: null,
-            error: null
+        // BigQuery işini kuyruğa ekle
+        const job = await addBigQueryJob({
+            jobId,
+            query: body.query,
+            parameters: body.parameters,
+            requestInfo: {
+                apiKey,
+                clientIp,
+                userAgent,
+                timestamp: new Date(),
+            }
         });
 
-        // Execute query asynchronously
-        executeQuery(query)
-            .then(result => {
-                jobs.set(jobId, {
-                    status: 'completed',
-                    query,
-                    startTime: new Date(),
-                    result,
-                    error: null
-                });
-            })
-            .catch(error => {
-                jobs.set(jobId, {
-                    status: 'failed',
-                    query,
-                    startTime: new Date(),
-                    result: null,
-                    error: error.message
-                });
-            });
+        const responseBody = {
+            jobId: job.id,
+            status: 'queued',
+            message: 'Query has been queued for processing'
+        };
 
-        const responseBody = { jobId };
         await logApiRequest({
             endpoint: '/api/bigquery',
             apiKey: apiKey || '',
             method: 'POST',
-            requestBody: body,
             responseBody,
             responseTimeMs: Date.now() - startTime,
             statusCode: 202,
             clientIp,
-            userAgent,
-            jobId,
-            jobStatus: 'pending',
-            queryText: query
+            userAgent
         });
 
         return NextResponse.json(responseBody, { status: 202 });
     } catch (error: any) {
         console.error('Error in bigquery endpoint:', error);
-        const responseBody = { error: error.message };
         
+        const responseBody = { error: error.message || 'Internal server error' };
         await logApiRequest({
             endpoint: '/api/bigquery',
             apiKey: apiKey || '',
@@ -134,14 +94,11 @@ export async function POST(request: NextRequest) {
             responseBody,
             responseTimeMs: Date.now() - startTime,
             statusCode: 500,
-            errorMessage: error.message,
             clientIp,
-            userAgent
+            userAgent,
+            errorMessage: error.message
         });
-
+        
         return NextResponse.json(responseBody, { status: 500 });
     }
 }
-
-// Export jobs map for other routes to access
-export { jobs };
