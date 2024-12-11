@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 export function SqlQueryForm() {
   const [query, setQuery] = useState('');
@@ -17,6 +17,7 @@ export function SqlQueryForm() {
     e.preventDefault();
     setLoading(true);
     setError('');
+    console.log('Submitting query:', query);
     
     try {
       const response = await fetch('/api/query', {
@@ -33,10 +34,12 @@ export function SqlQueryForm() {
         throw new Error(errorData.error || 'Query execution failed');
       }
 
-      const { data } = await response.json();
-      setResult(data);
+      const data = await response.json();
+      console.log('Query response:', data);
+      setResult(data.result);
       setLoading(false);
     } catch (err) {
+      console.error('Query error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
       setLoading(false);
     }

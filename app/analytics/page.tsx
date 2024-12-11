@@ -1,18 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import {
-    LineChart, Line, BarChart, Bar, PieChart, Pie,
-    Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-    ResponsiveContainer
-} from 'recharts';
 import { format } from 'date-fns';
-import {
-    useReactTable, getCoreRowModel, getSortedRowModel,
-    getFilteredRowModel, getPaginationRowModel,
-    createColumnHelper, flexRender, SortingState,
-} from '@tanstack/react-table';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
     FiHome, 
     FiTrash2, 
@@ -21,11 +12,18 @@ import {
     FiActivity,
     FiCheckCircle
 } from 'react-icons/fi';
-import { motion } from 'framer-motion';
-import { useRouter } from 'next/navigation';
+import {
+    useReactTable,
+    getCoreRowModel,
+    getSortedRowModel,
+    getFilteredRowModel,
+    getPaginationRowModel,
+    createColumnHelper,
+    flexRender,
+    type SortingState,
+    type ColumnDef
+} from '@tanstack/react-table';
 import SystemStatus from '../components/SystemStatus';
-
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 interface LogEntry {
     id: string;
@@ -126,7 +124,7 @@ const columns = [
         cell: info => info.getValue() || '-',
         sortingFn: 'alphanumeric'
     }),
-];
+] as ColumnDef<LogEntry>[];
 
 const AnalyticsPage = () => {
     const [dateRange, setDateRange] = useState<'today' | 'week' | 'month'>('today');
@@ -139,12 +137,6 @@ const AnalyticsPage = () => {
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [rateLimits, setRateLimits] = useState<RateLimitData | null>(null);
     const router = useRouter();
-
-    const handleLogout = () => {
-        localStorage.removeItem('analytics_api_key');
-        setIsAuthorized(false);
-        router.push('/');
-    };
 
     const table = useReactTable({
         data: data?.allLogs || [],
@@ -159,6 +151,12 @@ const AnalyticsPage = () => {
         getFilteredRowModel: getFilteredRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
     });
+
+    const handleLogout = () => {
+        localStorage.removeItem('analytics_api_key');
+        setIsAuthorized(false);
+        router.push('/');
+    };
 
     const verifyApiKey = async (key: string) => {
         try {
@@ -297,7 +295,7 @@ const AnalyticsPage = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50 p-8">
+            <div className="min-h-screen bg-gray-900 p-8">
                 <div className="flex items-center justify-center h-full">
                     <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500" />
                 </div>
@@ -306,11 +304,15 @@ const AnalyticsPage = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-900">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-                    <div className="flex items-center space-x-4 mb-6">
-                        <h1 className="text-2xl font-bold text-white">Analytics</h1>
+                {/* Header */}
+                <div className="flex justify-between items-center mb-6">
+                    <div className="flex items-center space-x-4">
+                        <Link href="/" className="text-gray-400 hover:text-gray-200">
+                            <FiHome className="w-5 h-5" />
+                        </Link>
+                        <h1 className="text-2xl font-bold text-white">Analytics Dashboard</h1>
                         <Link 
                             href="/swagger" 
                             className="text-sm text-blue-400 hover:text-blue-300 flex items-center space-x-1"
@@ -321,213 +323,215 @@ const AnalyticsPage = () => {
                             </svg>
                         </Link>
                     </div>
-                    <div className="flex justify-between items-center mb-6">
-                        <div className="flex items-center space-x-2">
-                            <Link href="/" className="text-gray-500 hover:text-gray-700">
-                                <FiHome className="w-5 h-5" />
-                            </Link>
-                            <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
-                        </div>
-                        <div className="flex items-center space-x-4">
-                            <select
-                                value={dateRange}
-                                onChange={(e) => setDateRange(e.target.value as any)}
-                                className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
-                            >
-                                <option value="today">Bugün</option>
-                                <option value="week">Son 7 Gün</option>
-                                <option value="month">Son 30 Gün</option>
-                            </select>
-                            <button
-                                onClick={clearLogs}
-                                disabled={clearingLogs}
-                                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
-                            >
-                                <FiTrash2 className="w-4 h-4 mr-2" />
-                                {clearingLogs ? 'Temizleniyor...' : 'Logları Temizle'}
-                            </button>
-                            <button
-                                onClick={handleLogout}
-                                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                            >
-                                <FiLogOut className="w-4 h-4 mr-2" />
-                                Çıkış
-                            </button>
-                        </div>
+                    <div className="flex items-center space-x-4">
+                        <select
+                            value={dateRange}
+                            onChange={(e) => setDateRange(e.target.value as any)}
+                            className="bg-gray-800 text-white rounded-md border-gray-700 focus:border-blue-500 focus:ring-blue-500 p-2"
+                        >
+                            <option value="today">Bugün</option>
+                            <option value="week">Son 7 Gün</option>
+                            <option value="month">Son 30 Gün</option>
+                        </select>
+                        <button
+                            onClick={clearLogs}
+                            disabled={clearingLogs}
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
+                        >
+                            <FiTrash2 className="w-4 h-4 mr-2" />
+                            {clearingLogs ? 'Temizleniyor...' : 'Logları Temizle'}
+                        </button>
+                        <button
+                            onClick={handleLogout}
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                        >
+                            <FiLogOut className="w-4 h-4 mr-2" />
+                            Çıkış
+                        </button>
                     </div>
+                </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                        {/* Toplam İstek */}
-                        <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
-                            <div className="mb-4">
-                                <h3 className="text-xl font-bold text-white mb-2">
-                                    Toplam İstek
-                                </h3>
-                                <div className="flex items-center space-x-2 text-gray-400">
-                                    <span className="text-sm">Son 24 saat</span>
-                                </div>
-                            </div>
+                {/* System Status */}
+                <div className="mb-8">
+                    <SystemStatus />
+                </div>
 
-                            <div className="bg-gray-900/50 rounded-lg p-4">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-4xl font-bold text-white">
-                                        {data?.totalRequests?.[0]?.count || 0}
-                                    </span>
-                                    <div className="p-3 bg-blue-500/10 rounded-lg">
-                                        <FiActivity className="w-6 h-6 text-blue-400" />
-                                    </div>
-                                </div>
+                {/* Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                    {/* Toplam İstek */}
+                    <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
+                        <div className="mb-4">
+                            <h3 className="text-xl font-bold text-white mb-2">
+                                Toplam İstek
+                            </h3>
+                            <div className="flex items-center space-x-2 text-gray-400">
+                                <span className="text-sm">Son 24 saat</span>
                             </div>
                         </div>
 
-                        {/* Başarılı İstekler */}
-                        <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
-                            <div className="mb-4">
-                                <h3 className="text-xl font-bold text-white mb-2">
-                                    Başarılı İstekler
-                                </h3>
-                                <div className="flex items-center space-x-2 text-gray-400">
-                                    <span className="text-sm">Başarı Oranı</span>
-                                </div>
-                            </div>
-
-                            <div className="bg-gray-900/50 rounded-lg p-4">
-                                <div className="flex items-center justify-between mb-3">
-                                    <span className="text-4xl font-bold text-white">
-                                        {data?.requestsByStatus?.find((s: any) => s.status_code === 200)?.count || 0}
-                                    </span>
-                                    <div className="p-3 bg-green-500/10 rounded-lg">
-                                        <FiCheckCircle className="w-6 h-6 text-green-400" />
-                                    </div>
-                                </div>
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="text-gray-400">Başarı Oranı</span>
-                                    <span className="text-green-400 font-medium">
-                                        %{Math.round(
-                                            ((data?.requestsByStatus?.find((s: any) => s.status_code === 200)?.count || 0) / 
-                                            (data?.totalRequests?.[0]?.count || 1)) * 100
-                                        )}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Ortalama Yanıt Süresi */}
-                        <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
-                            <div className="mb-4">
-                                <h3 className="text-xl font-bold text-white mb-2">
-                                    Ortalama Yanıt Süresi
-                                </h3>
-                                <div className="flex items-center space-x-2 text-gray-400">
-                                    <span className="text-sm">Tüm istekler</span>
-                                </div>
-                            </div>
-
-                            <div className="bg-gray-900/50 rounded-lg p-4">
-                                <div className="flex items-center justify-between mb-3">
-                                    <span className="text-4xl font-bold text-white">
-                                        {((data?.averageResponseTime?.[0]?.avg_response_time || 0) / 1000).toFixed(2)}
-                                    </span>
-                                    <div className="p-3 bg-purple-500/10 rounded-lg">
-                                        <FiClock className="w-6 h-6 text-purple-400" />
-                                    </div>
-                                </div>
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="text-gray-400">Saniye</span>
-                                    <span className={`font-medium ${
-                                        (data?.averageResponseTime?.[0]?.avg_response_time || 0) > 5000 ? 'text-red-400' :
-                                        (data?.averageResponseTime?.[0]?.avg_response_time || 0) > 2000 ? 'text-yellow-400' :
-                                        'text-purple-400'
-                                    }`}>
-                                        {(data?.averageResponseTime?.[0]?.avg_response_time || 0) > 5000 ? 'Yavaş' :
-                                         (data?.averageResponseTime?.[0]?.avg_response_time || 0) > 2000 ? 'Normal' :
-                                         'Hızlı'}
-                                    </span>
+                        <div className="bg-gray-900/50 rounded-lg p-4">
+                            <div className="flex items-center justify-between">
+                                <span className="text-4xl font-bold text-white">
+                                    {data?.totalRequests?.[0]?.count || 0}
+                                </span>
+                                <div className="p-3 bg-blue-500/10 rounded-lg">
+                                    <FiActivity className="w-6 h-6 text-blue-400" />
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="mb-8">
-                        <div className="flex items-center space-x-3 mb-6">
-                            <div className="p-2 bg-blue-500/10 rounded-lg">
-                                <FiClock className="w-6 h-6 text-blue-400" />
+                    {/* Başarılı İstekler */}
+                    <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
+                        <div className="mb-4">
+                            <h3 className="text-xl font-bold text-white mb-2">
+                                Başarılı İstekler
+                            </h3>
+                            <div className="flex items-center space-x-2 text-gray-400">
+                                <span className="text-sm">Başarı Oranı</span>
                             </div>
-                            <h2 className="text-2xl font-bold text-white">
-                                API Kullanım Limitleri
-                            </h2>
                         </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {rateLimits?.limits.map((limit, index) => {
-                                const usagePercent = (limit.used / limit.limit) * 100;
-                                const isWarning = usagePercent > 70;
-                                const isDanger = usagePercent > 90;
-                                
-                                return (
-                                    <div 
-                                        key={index}
-                                        className="bg-gray-800 rounded-xl border border-gray-700 p-6"
-                                    >
-                                        {/* Başlık ve Durum */}
-                                        <div className="mb-4">
-                                            <h3 className="text-xl font-bold text-white mb-2">
-                                                {limit.description}
-                                            </h3>
-                                            <div className="flex items-center space-x-2 text-gray-400">
-                                                <span className="text-sm">Periyot: {limit.window}</span>
-                                            </div>
-                                        </div>
 
-                                        {/* Kullanım Bilgisi */}
-                                        <div className="bg-gray-900/50 rounded-lg p-4 mb-4">
-                                            <div className="flex justify-between items-center mb-1">
-                                                <span className="text-gray-400">Toplam Limit</span>
-                                                <span className="text-white font-bold">{limit.limit}</span>
-                                            </div>
-                                            <div className="flex justify-between items-center mb-1">
-                                                <span className="text-gray-400">Kullanılan</span>
-                                                <span className="text-white font-bold">{limit.used}</span>
-                                            </div>
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-gray-400">Kalan</span>
-                                                <span className={`font-bold ${
-                                                    isDanger ? 'text-red-400' :
-                                                    isWarning ? 'text-yellow-400' :
-                                                    'text-green-400'
-                                                }`}>{limit.remaining}</span>
-                                            </div>
-                                        </div>
-
-                                        {/* İlerleme Çubuğu */}
-                                        <div className="space-y-2">
-                                            <div className="h-2.5 bg-gray-700 rounded-full overflow-hidden">
-                                                <div 
-                                                    className={`h-full rounded-full transition-all duration-500 ${
-                                                        isDanger ? 'bg-red-500' :
-                                                        isWarning ? 'bg-yellow-500' :
-                                                        'bg-green-500'
-                                                    }`}
-                                                    style={{ width: `${usagePercent}%` }}
-                                                />
-                                            </div>
-                                            <div className="flex justify-between items-center text-sm">
-                                                <span className="text-gray-400">Kullanım Oranı</span>
-                                                <span className={`font-medium ${
-                                                    isDanger ? 'text-red-400' :
-                                                    isWarning ? 'text-yellow-400' :
-                                                    'text-green-400'
-                                                }`}>
-                                                    %{Math.round(usagePercent)}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                        <div className="bg-gray-900/50 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-4xl font-bold text-white">
+                                    {data?.requestsByStatus?.find((s: any) => s.status_code === 200)?.count || 0}
+                                </span>
+                                <div className="p-3 bg-green-500/10 rounded-lg">
+                                    <FiCheckCircle className="w-6 h-6 text-green-400" />
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                                <span className="text-gray-400">Başarı Oranı</span>
+                                <span className="text-green-400 font-medium">
+                                    %{Math.round(
+                                        ((data?.requestsByStatus?.find((s: any) => s.status_code === 200)?.count || 0) / 
+                                        (data?.totalRequests?.[0]?.count || 1)) * 100
+                                    )}
+                                </span>
+                            </div>
                         </div>
                     </div>
 
+                    {/* Ortalama Yanıt Süresi */}
+                    <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
+                        <div className="mb-4">
+                            <h3 className="text-xl font-bold text-white mb-2">
+                                Ortalama Yanıt Süresi
+                            </h3>
+                            <div className="flex items-center space-x-2 text-gray-400">
+                                <span className="text-sm">Tüm istekler</span>
+                            </div>
+                        </div>
+
+                        <div className="bg-gray-900/50 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-4xl font-bold text-white">
+                                    {((data?.averageResponseTime?.[0]?.avg_response_time || 0) / 1000).toFixed(2)}
+                                </span>
+                                <div className="p-3 bg-purple-500/10 rounded-lg">
+                                    <FiClock className="w-6 h-6 text-purple-400" />
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                                <span className="text-gray-400">Saniye</span>
+                                <span className={`font-medium ${
+                                    (data?.averageResponseTime?.[0]?.avg_response_time || 0) > 5000 ? 'text-red-400' :
+                                    (data?.averageResponseTime?.[0]?.avg_response_time || 0) > 2000 ? 'text-yellow-400' :
+                                    'text-purple-400'
+                                }`}>
+                                    {(data?.averageResponseTime?.[0]?.avg_response_time || 0) > 5000 ? 'Yavaş' :
+                                     (data?.averageResponseTime?.[0]?.avg_response_time || 0) > 2000 ? 'Normal' :
+                                     'Hızlı'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Rate Limits Section */}
+                <div className="mb-8">
+                    <div className="flex items-center space-x-3 mb-6">
+                        <div className="p-2 bg-blue-500/10 rounded-lg">
+                            <FiClock className="w-6 h-6 text-blue-400" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-white">
+                            API Kullanım Limitleri
+                        </h2>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {rateLimits?.limits.map((limit, index) => {
+                            const usagePercent = (limit.used / limit.limit) * 100;
+                            const isWarning = usagePercent > 70;
+                            const isDanger = usagePercent > 90;
+                            
+                            return (
+                                <div 
+                                    key={index}
+                                    className="bg-gray-800 rounded-xl border border-gray-700 p-6"
+                                >
+                                    {/* Başlık ve Durum */}
+                                    <div className="mb-4">
+                                        <h3 className="text-xl font-bold text-white mb-2">
+                                            {limit.description}
+                                        </h3>
+                                        <div className="flex items-center space-x-2 text-gray-400">
+                                            <span className="text-sm">Periyot: {limit.window}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Kullanım Bilgisi */}
+                                    <div className="bg-gray-900/50 rounded-lg p-4 mb-4">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-gray-400">Toplam Limit</span>
+                                            <span className="text-white font-bold">{limit.limit}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-gray-400">Kullanılan</span>
+                                            <span className="text-white font-bold">{limit.used}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-400">Kalan</span>
+                                            <span className={`font-bold ${
+                                                isDanger ? 'text-red-400' :
+                                                isWarning ? 'text-yellow-400' :
+                                                'text-green-400'
+                                            }`}>{limit.remaining}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* İlerleme Çubuğu */}
+                                    <div className="space-y-2">
+                                        <div className="h-2.5 bg-gray-700 rounded-full overflow-hidden">
+                                            <div 
+                                                className={`h-full rounded-full transition-all duration-500 ${
+                                                    isDanger ? 'bg-red-500' :
+                                                    isWarning ? 'bg-yellow-500' :
+                                                    'bg-green-500'
+                                                }`}
+                                                style={{ width: `${usagePercent}%` }}
+                                            />
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-gray-400">Kullanım Oranı</span>
+                                            <span className={`font-medium ${
+                                                isDanger ? 'text-red-400' :
+                                                isWarning ? 'text-yellow-400' :
+                                                'text-green-400'
+                                            }`}>
+                                                %{Math.round(usagePercent)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Logs Table */}
+                <div className="bg-gray-800 rounded-lg shadow-lg p-6">
                     <div className="overflow-x-auto">
                         <div className="mb-4">
                             <input
@@ -535,17 +539,17 @@ const AnalyticsPage = () => {
                                 placeholder="Ara..."
                                 value={globalFilter}
                                 onChange={e => setGlobalFilter(e.target.value)}
-                                className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-white placeholder-gray-400"
                             />
                         </div>
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
+                        <table className="min-w-full divide-y divide-gray-700">
+                            <thead className="bg-gray-900">
                                 <tr>
                                     {table.getFlatHeaders().map(header => (
                                         <th
                                             key={header.id}
                                             scope="col"
-                                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                            className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-800"
                                             onClick={header.column.getToggleSortingHandler()}
                                         >
                                             <div className="flex items-center gap-2">
@@ -562,11 +566,11 @@ const AnalyticsPage = () => {
                                     ))}
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
+                            <tbody className="bg-gray-800 divide-y divide-gray-700">
                                 {table.getRowModel().rows.map(row => (
-                                    <tr key={row.id}>
+                                    <tr key={row.id} className="hover:bg-gray-700">
                                         {row.getVisibleCells().map(cell => (
-                                            <td key={cell.id} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <td key={cell.id} className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                                                 {flexRender(
                                                     cell.column.columnDef.cell,
                                                     cell.getContext()
@@ -582,34 +586,34 @@ const AnalyticsPage = () => {
                                 <button
                                     onClick={() => table.setPageIndex(0)}
                                     disabled={!table.getCanPreviousPage()}
-                                    className="px-3 py-1 border rounded disabled:opacity-50"
+                                    className="px-3 py-1 bg-gray-700 text-gray-300 border border-gray-600 rounded disabled:opacity-50 hover:bg-gray-600"
                                 >
                                     {'<<'}
                                 </button>
                                 <button
                                     onClick={() => table.previousPage()}
                                     disabled={!table.getCanPreviousPage()}
-                                    className="px-3 py-1 border rounded disabled:opacity-50"
+                                    className="px-3 py-1 bg-gray-700 text-gray-300 border border-gray-600 rounded disabled:opacity-50 hover:bg-gray-600"
                                 >
                                     {'<'}
                                 </button>
                                 <button
                                     onClick={() => table.nextPage()}
                                     disabled={!table.getCanNextPage()}
-                                    className="px-3 py-1 border rounded disabled:opacity-50"
+                                    className="px-3 py-1 bg-gray-700 text-gray-300 border border-gray-600 rounded disabled:opacity-50 hover:bg-gray-600"
                                 >
                                     {'>'}
                                 </button>
                                 <button
                                     onClick={() => table.setPageIndex(table.getPageCount() - 1)}
                                     disabled={!table.getCanNextPage()}
-                                    className="px-3 py-1 border rounded disabled:opacity-50"
+                                    className="px-3 py-1 bg-gray-700 text-gray-300 border border-gray-600 rounded disabled:opacity-50 hover:bg-gray-600"
                                 >
                                     {'>>'}
                                 </button>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm text-gray-700">
+                            <div className="flex items-center gap-2 text-gray-300">
+                                <span className="text-sm">
                                     Sayfa{' '}
                                     <strong>
                                         {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
@@ -620,7 +624,7 @@ const AnalyticsPage = () => {
                                     onChange={e => {
                                         table.setPageSize(Number(e.target.value));
                                     }}
-                                    className="px-2 py-1 border rounded"
+                                    className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm"
                                 >
                                     {[10, 20, 30, 40, 50].map(pageSize => (
                                         <option key={pageSize} value={pageSize}>
@@ -631,7 +635,6 @@ const AnalyticsPage = () => {
                             </div>
                         </div>
                     </div>
-                    <SystemStatus />
                 </div>
             </div>
         </div>

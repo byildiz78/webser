@@ -2,7 +2,7 @@ import QueueConfig, { QueueType } from './config';
 import { executeQuery } from '@/lib/db';
 import { JobsOptions } from 'bullmq';
 
-interface BigQueryJobData {
+interface InstantQueryJobData {
   query: string;
   parameters?: any[];
   requestInfo: {
@@ -17,12 +17,12 @@ interface QueryResult {
   [key: string]: any;
 }
 
-// BigQuery işlerini işleyen worker
-const bigqueryProcessor = async (job: any) => {
+// Instant Query işlerini işleyen worker
+const instantQueryProcessor = async (job: any) => {
   const { data } = job;
   
   try {
-    console.log(`Processing BigQuery job ${job.id}: ${data.query}`);
+    console.log(`Processing Instant Query: ${data.query}`);
     
     const startTime = Date.now();
     
@@ -32,26 +32,22 @@ const bigqueryProcessor = async (job: any) => {
     const endTime = Date.now();
     const executionTime = endTime - startTime;
 
-    console.log(`Query execution completed for job ${job.id}. Found ${queryResult?.length || 0} rows.`);
+    console.log(`Query execution completed. Found ${queryResult?.length || 0} rows.`);
 
     // Return both metadata and results
-    const result = {
+    return {
       success: true,
       processedAt: new Date(),
-      result: queryResult, // The actual query results
+      result: queryResult,
       metadata: {
         rowCount: Array.isArray(queryResult) ? queryResult.length : 0,
         query: data.query,
-        executionTime,
-        jobId: job.id
+        executionTime
       }
     };
 
-    console.log(`Returning result for job ${job.id}`);
-    return result;
-
   } catch (error: any) {
-    console.error(`Error processing BigQuery job ${job.id}:`, error);
+    console.error('Error processing Instant Query:', error);
     
     // Return error result
     return {
@@ -60,35 +56,32 @@ const bigqueryProcessor = async (job: any) => {
       error: error.message,
       metadata: {
         query: data.query,
-        jobId: job.id,
         errorDetails: error.stack
       }
     };
   }
 };
 
-// BigQuery queue'sunu ve worker'ını oluştur
-const bigqueryQueue = QueueConfig.getQueue(QueueType.BIGQUERY);
+// Instant Query queue'sunu ve worker'ını oluştur
+export const instantQueryQueue = QueueConfig.getQueue(QueueType.INSTANT_QUERY);
 
 // Worker'ı oluştur ve event listener'ları ekle
-const bigqueryWorker = QueueConfig.createWorker(QueueType.BIGQUERY, bigqueryProcessor);
+const instantQueryWorker = QueueConfig.createWorker(QueueType.INSTANT_QUERY, instantQueryProcessor);
 
-bigqueryWorker.on('completed', (job) => {
-  console.log(`Job ${job.id} completed successfully`);
+instantQueryWorker.on('completed', (job) => {
+  console.log(`Instant Query completed successfully: ${job.id}`);
 });
 
-bigqueryWorker.on('failed', (job, error) => {
-  console.error(`Job ${job?.id} failed:`, error);
+instantQueryWorker.on('failed', (job, error) => {
+  console.error(`Instant Query failed: ${job?.id}`, error);
 });
 
-// BigQuery işi ekleme fonksiyonu
-export const addBigQueryJob = async (data: BigQueryJobData) => {
+// Instant Query işi ekleme ve sonuç bekleme fonksiyonu
+export const processInstantQuery = async (data: InstantQueryJobData) => {
+  console.log('Processing new Instant Query');
+  
   const jobOptions: JobsOptions = {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 1000,
-    },
+    attempts: 1, // Instant query için retry yapmıyoruz
     removeOnComplete: {
       age: 7 * 24 * 3600, // 7 gün sonra tamamlanan işleri sil
       count: 10000 // En fazla 10000 tamamlanan iş tut
@@ -98,7 +91,11 @@ export const addBigQueryJob = async (data: BigQueryJobData) => {
     }
   };
 
-  return await bigqueryQueue.add('process-query', data, jobOptions);
+  const job = await instantQueryQueue.add('process-query', data, jobOptions);
+  const queueEvents = QueueConfig.getQueueEvents(QueueType.INSTANT_QUERY);
+  
+  // Sonucu bekle
+  const result = await job.waitUntilFinished(queueEvents);
+  
+  return result;
 };
-
-export default bigqueryQueue;

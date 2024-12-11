@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { BsSpeedometer2, BsBook } from 'react-icons/bs';
 import { TbDatabase } from 'react-icons/tb';
 import { FiServer } from 'react-icons/fi';
-import { SqlQueryForm } from '@/components/sql-query-form';
+import { SqlQueryForm } from '../components/sql-query-form';
 import { useState, useEffect } from 'react';
 
 export default function Home() {

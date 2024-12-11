@@ -1,28 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyApiKey } from '@/lib/auth';
-import { jobs } from '@/app/api/bigquery/route';
 import { logApiRequest } from '@/lib/logger';
+import { bigqueryQueue } from '@/lib/queue';
 
 export async function GET(
     request: NextRequest,
     { params }: { params: { jobId: string } }
 ) {
     const startTime = Date.now();
-    const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.split(' ')[1];
-    const clientIp = request.headers.get('x-forwarded-for') || request.ip;
-    const userAgent = request.headers.get('user-agent');
+    const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.split(' ')[1] || '';
+    const clientIp = request.headers.get('x-forwarded-for') || request.ip || undefined;
+    const userAgent = request.headers.get('user-agent') || undefined;
     const { jobId } = params;
 
     try {
-        console.log('Received headers:', Object.fromEntries(request.headers.entries()));
-        
         // Verify API key
         const keyVerification = await verifyApiKey(apiKey);
         if (!keyVerification.isValid) {
             const responseBody = { error: keyVerification.error || 'Invalid API key' };
             await logApiRequest({
                 endpoint: `/api/job/status/${jobId}`,
-                apiKey: apiKey || 'invalid',
+                apiKey: apiKey,
                 method: 'GET',
                 responseBody,
                 responseTimeMs: Date.now() - startTime,
@@ -35,12 +33,14 @@ export async function GET(
             return NextResponse.json(responseBody, { status: 401 });
         }
 
-        const job = jobs.get(jobId);
+        // Get job from queue
+        const job = await bigqueryQueue.getJob(jobId);
+        
         if (!job) {
             const responseBody = { error: 'Job not found' };
             await logApiRequest({
                 endpoint: `/api/job/status/${jobId}`,
-                apiKey: apiKey || '',
+                apiKey,
                 method: 'GET',
                 responseBody,
                 responseTimeMs: Date.now() - startTime,
@@ -52,16 +52,25 @@ export async function GET(
             return NextResponse.json(responseBody, { status: 404 });
         }
 
+        // Get job state and other details
+        const [state, progress] = await Promise.all([
+            job.getState(),
+            job.progress
+        ]);
+
         const responseBody = {
-            status: job.status,
-            startTime: job.startTime,
-            error: job.error,
-            downloadUrl: job.status === 'completed' ? `/api/job/result/${jobId}` : null
+            jobId: job.id,
+            status: state,
+            progress: progress,
+            startTime: job.processedOn,
+            finishTime: job.finishedOn,
+            error: job.failedReason,
+            downloadUrl: state === 'completed' ? `/api/job/result/${jobId}` : undefined
         };
 
         await logApiRequest({
             endpoint: `/api/job/status/${jobId}`,
-            apiKey: apiKey || '',
+            apiKey,
             method: 'GET',
             responseBody,
             responseTimeMs: Date.now() - startTime,
@@ -69,18 +78,18 @@ export async function GET(
             clientIp,
             userAgent,
             jobId,
-            jobStatus: job.status,
+            jobStatus: state,
             jobDownloadLink: responseBody.downloadUrl
         });
 
         return NextResponse.json(responseBody);
     } catch (error: any) {
         console.error('Error in job status endpoint:', error);
-        const responseBody = { error: error.message };
+        const responseBody = { error: error.message || 'Internal server error' };
         
         await logApiRequest({
             endpoint: `/api/job/status/${jobId}`,
-            apiKey: apiKey || '',
+            apiKey,
             method: 'GET',
             responseBody,
             responseTimeMs: Date.now() - startTime,

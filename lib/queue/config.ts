@@ -1,4 +1,4 @@
-import { Queue, Worker, QueueScheduler, Job } from 'bullmq';
+import { Queue, Worker, QueueScheduler, Job, QueueEvents } from 'bullmq';
 import IORedis from 'ioredis';
 import { isRetryableError, logError } from '@/lib/error';
 
@@ -14,7 +14,8 @@ const connection = new IORedis({
 export enum QueueType {
   ANALYTICS = 'analytics',
   BIGQUERY = 'bigquery',
-  RATE_LIMIT = 'rate-limit'
+  RATE_LIMIT = 'rate-limit',
+  INSTANT_QUERY = 'instant-query'
 }
 
 // Retry stratejileri
@@ -39,6 +40,13 @@ const retryStrategies = {
       type: 'fixed',
       delay: 1000,
     }
+  },
+  [QueueType.INSTANT_QUERY]: {
+    attempts: 1,
+    backoff: {
+      type: 'fixed',
+      delay: 1000,
+    }
   }
 };
 
@@ -47,6 +55,7 @@ class QueueConfig {
   private static queues: Map<string, Queue> = new Map();
   private static workers: Map<string, Worker> = new Map();
   private static schedulers: Map<string, QueueScheduler> = new Map();
+  private static queueEvents: Map<string, QueueEvents> = new Map();
 
   // Queue oluşturma veya var olan queue'yu getirme
   static getQueue(name: QueueType): Queue {
@@ -67,6 +76,15 @@ class QueueConfig {
       this.queues.set(name, queue);
     }
     return this.queues.get(name)!;
+  }
+
+  // QueueEvents instance'ı alma
+  static getQueueEvents(name: QueueType): QueueEvents {
+    if (!this.queueEvents.has(name)) {
+      const queueEvents = new QueueEvents(name, { connection });
+      this.queueEvents.set(name, queueEvents);
+    }
+    return this.queueEvents.get(name)!;
   }
 
   // Worker oluşturma
@@ -150,6 +168,9 @@ class QueueConfig {
     }
     for (const scheduler of this.schedulers.values()) {
       await scheduler.close();
+    }
+    for (const queueEvents of this.queueEvents.values()) {
+      await queueEvents.close();
     }
     await connection.quit();
   }

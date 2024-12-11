@@ -17,6 +17,7 @@ const connection = new IORedis({
 const analyticsQueue = new Queue('analytics', { connection });
 const bigQueryQueue = new Queue('bigquery', { connection });
 const rateLimitQueue = new Queue('rate-limit', { connection });
+const instantQueryQueue = new Queue('instant-query', { connection });
 
 const app = express();
 
@@ -32,13 +33,14 @@ app.use(express.urlencoded({ extended: true }));
 
 // Bull Board setup
 const serverAdapter = new ExpressAdapter();
-serverAdapter.setBasePath('/admin/queues'); // Bull Board base path'ini değiştirdik
+serverAdapter.setBasePath('/admin/queues');
 
 createBullBoard({
     queues: [
         new BullMQAdapter(analyticsQueue),
         new BullMQAdapter(bigQueryQueue),
-        new BullMQAdapter(rateLimitQueue)
+        new BullMQAdapter(rateLimitQueue),
+        new BullMQAdapter(instantQueryQueue)
     ],
     serverAdapter,
 });

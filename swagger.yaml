@@ -9,6 +9,13 @@ servers:
     description: Development server
 
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Enter your API key as the Bearer token
+
   schemas:
     DateRange:
       type: object
@@ -83,11 +90,177 @@ components:
                 format: float
                 example: 5.00
 
+    QueryRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          description: SQL query to execute
+          example: "SELECT top 10 * FROM efr_users"
+        parameters:
+          type: object
+          description: Optional query parameters
+          additionalProperties: true
+
+    InstantQueryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        result:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          description: Query results
+        metadata:
+          type: object
+          properties:
+            rowCount:
+              type: integer
+              example: 10
+            query:
+              type: string
+              example: "SELECT top 10 * FROM efr_users"
+            executionTime:
+              type: integer
+              description: Query execution time in milliseconds
+              example: 123
+
+    BigQueryResponse:
+      type: object
+      properties:
+        jobId:
+          type: string
+          example: "123"
+        status:
+          type: string
+          enum: [queued, processing, completed, failed]
+          example: "queued"
+        message:
+          type: string
+          example: "Query has been queued for processing"
+
+    JobStatus:
+      type: object
+      properties:
+        jobId:
+          type: string
+          example: "123"
+        status:
+          type: string
+          enum: [queued, processing, completed, failed]
+          example: "completed"
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 100
+        startTime:
+          type: string
+          format: date-time
+        finishTime:
+          type: string
+          format: date-time
+        error:
+          type: string
+        downloadUrl:
+          type: string
+          example: "/api/job/result/123"
+
+security:
+  - BearerAuth: []
+
 paths:
+  /api/query:
+    post:
+      summary: Execute SQL query with caching support
+      description: Executes a SQL query and returns the results. Results may be served from cache if available and not explicitly skipped.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  description: SQL query to execute
+                  example: "SELECT top 10 * FROM efr_users"
+                parameters:
+                  type: object
+                  description: Optional query parameters
+                  additionalProperties: true
+                skipCache:
+                  type: boolean
+                  description: Whether to skip cache lookup and force query execution
+                  default: false
+      responses:
+        '200':
+          description: Query executed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [completed]
+                    example: "completed"
+                  result:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                    description: Query results
+                  fromCache:
+                    type: boolean
+                    description: Whether the result was served from cache
+                    example: true
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Query is required"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Invalid API key"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Internal server error"
+
   /api/analytics:
     get:
       summary: Analitik verilerini getir
       description: Belirtilen tarih aralığı için analitik verilerini döndürür
+      security:
+        - BearerAuth: []
       parameters:
         - in: query
           name: range
@@ -139,6 +312,8 @@ paths:
     get:
       summary: Rate limit bilgilerini getir
       description: Mevcut rate limit durumunu ve kullanım istatistiklerini döndürür
+      security:
+        - BearerAuth: []
       responses:
         '200':
           description: Başarılı
@@ -175,3 +350,206 @@ paths:
                   error:
                     type: string
                     example: "Internal server error"
+
+  /api/instantquery:
+    post:
+      summary: Execute SQL query and get immediate results
+      description: Executes a SQL query and returns the results immediately in JSON format
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: Query executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstantQueryResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Query is required"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Invalid API key"
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Too many requests"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  metadata:
+                    type: object
+                    properties:
+                      query:
+                        type: string
+                      errorDetails:
+                        type: string
+
+  /api/bigquery:
+    post:
+      summary: Queue a SQL query for execution
+      description: Submits a SQL query for asynchronous execution
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '202':
+          description: Query accepted for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BigQueryResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Query is required"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Invalid API key"
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Too many requests"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+  /api/job/status/{jobId}:
+    get:
+      summary: Get the current status of a query job
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Job identifier
+      responses:
+        '200':
+          description: Job status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+  /api/job/result/{jobId}:
+    get:
+      summary: Download job results
+      description: Download the query results as a ZIP file containing JSON
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Job identifier
+      responses:
+        '200':
+          description: Results downloaded successfully
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string

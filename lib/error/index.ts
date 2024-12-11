@@ -1,79 +1,53 @@
-// Özel hata sınıfları
-export class QueueError extends Error {
-    constructor(
-        message: string,
-        public readonly queueName: string,
-        public readonly jobId?: string,
-        public readonly originalError?: Error
-    ) {
-        super(message);
-        this.name = 'QueueError';
+interface ErrorLogContext {
+    queueName: string;
+    jobId: string;
+    jobData: any;
+}
+
+// Yeniden denenebilir hataları belirle
+export function isRetryableError(error: any): boolean {
+    // Redis bağlantı hataları
+    if (error.name === 'RedisError' || error.name === 'ReplyError') {
+        return true;
     }
-}
 
-export class RetryableError extends QueueError {
-    constructor(
-        message: string,
-        queueName: string,
-        jobId?: string,
-        originalError?: Error
-    ) {
-        super(message, queueName, jobId, originalError);
-        this.name = 'RetryableError';
+    // Ağ hataları
+    if (error.code === 'ECONNREFUSED' || error.code === 'ECONNRESET') {
+        return true;
     }
-}
 
-export class NonRetryableError extends QueueError {
-    constructor(
-        message: string,
-        queueName: string,
-        jobId?: string,
-        originalError?: Error
-    ) {
-        super(message, queueName, jobId, originalError);
-        this.name = 'NonRetryableError';
+    // Timeout hataları
+    if (error.name === 'TimeoutError' || error.code === 'ETIMEDOUT') {
+        return true;
     }
+
+    // Rate limit hataları
+    if (error.status === 429 || error.message?.includes('rate limit')) {
+        return true;
+    }
+
+    return false;
 }
 
-// Hata işleme yardımcı fonksiyonları
-export function isRetryableError(error: Error): boolean {
-    if (error instanceof RetryableError) return true;
-    if (error instanceof NonRetryableError) return false;
-    
-    // Bazı yaygın hataları kontrol et
-    const retryableErrors = [
-        'ECONNREFUSED',
-        'ETIMEDOUT',
-        'ECONNRESET',
-        'ESOCKETTIMEDOUT',
-        'ENOTFOUND',
-        'ENETUNREACH'
-    ];
-    
-    return retryableErrors.some(errType => 
-        error.message.includes(errType) || error.name.includes(errType)
-    );
-}
-
-// Hata loglama
-export async function logError(error: Error, context: any = {}) {
+// Hata logla
+export async function logError(error: any, context: ErrorLogContext): Promise<void> {
     const errorLog = {
-        timestamp: new Date(),
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-        context: {
-            ...context,
-            queueName: error instanceof QueueError ? error.queueName : undefined,
-            jobId: error instanceof QueueError ? error.jobId : undefined,
-            originalError: error instanceof QueueError ? error.originalError : undefined
+        timestamp: new Date().toISOString(),
+        queueName: context.queueName,
+        jobId: context.jobId,
+        jobData: context.jobData,
+        error: {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            status: error.status
         }
     };
 
     // Hata logunu konsola yaz
     console.error('Queue Error:', errorLog);
-    
-    // TODO: Hata logunu veritabanına veya harici bir servise kaydet
-    
-    return errorLog;
+
+    // TODO: Hataları bir log servisine veya veritabanına kaydet
+    // Örneğin: await logToDatabase(errorLog);
 }

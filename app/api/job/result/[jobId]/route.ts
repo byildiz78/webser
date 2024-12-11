@@ -1,29 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyApiKey } from '@/lib/auth';
-import { jobs } from '@/app/api/bigquery/route';
 import { logApiRequest } from '@/lib/logger';
+import { bigqueryQueue } from '@/lib/queue';
 import archiver from 'archiver';
+
+interface JobResult {
+    success: boolean;
+    processedAt: Date;
+    result?: any[];
+    error?: string;
+    metadata: {
+        rowCount?: number;
+        query: string;
+        executionTime?: number;
+        jobId: string;
+    };
+}
 
 export async function GET(
     request: NextRequest,
     { params }: { params: { jobId: string } }
 ) {
     const startTime = Date.now();
-    const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.split(' ')[1];
-    const clientIp = request.headers.get('x-forwarded-for') || request.ip;
-    const userAgent = request.headers.get('user-agent');
+    const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.split(' ')[1] || '';
+    const clientIp = request.headers.get('x-forwarded-for') || request.ip || undefined;
+    const userAgent = request.headers.get('user-agent') || undefined;
     const { jobId } = params;
 
     try {
-        console.log('Received headers:', Object.fromEntries(request.headers.entries()));
-        
         // Verify API key
         const keyVerification = await verifyApiKey(apiKey);
         if (!keyVerification.isValid) {
             const responseBody = { error: keyVerification.error || 'Invalid API key' };
             await logApiRequest({
                 endpoint: `/api/job/result/${jobId}`,
-                apiKey: apiKey || 'invalid',
+                apiKey,
                 method: 'GET',
                 responseBody,
                 responseTimeMs: Date.now() - startTime,
@@ -36,12 +47,14 @@ export async function GET(
             return NextResponse.json(responseBody, { status: 401 });
         }
 
-        const job = jobs.get(jobId);
+        // Get job directly by ID
+        const job = await bigqueryQueue.getJob(jobId);
+        
         if (!job) {
             const responseBody = { error: 'Job not found' };
             await logApiRequest({
                 endpoint: `/api/job/result/${jobId}`,
-                apiKey: apiKey || '',
+                apiKey,
                 method: 'GET',
                 responseBody,
                 responseTimeMs: Date.now() - startTime,
@@ -53,11 +66,13 @@ export async function GET(
             return NextResponse.json(responseBody, { status: 404 });
         }
 
-        if (job.status !== 'completed') {
+        // Check job state
+        const state = await job.getState();
+        if (state !== 'completed') {
             const responseBody = { error: 'Job not completed' };
             await logApiRequest({
                 endpoint: `/api/job/result/${jobId}`,
-                apiKey: apiKey || '',
+                apiKey,
                 method: 'GET',
                 responseBody,
                 responseTimeMs: Date.now() - startTime,
@@ -65,9 +80,67 @@ export async function GET(
                 clientIp,
                 userAgent,
                 jobId,
-                jobStatus: job.status
+                jobStatus: state
             });
             return NextResponse.json(responseBody, { status: 400 });
+        }
+
+        // Get job result
+        const jobResult = await job.returnvalue as JobResult;
+        if (!jobResult) {
+            const responseBody = { error: 'Job result not found' };
+            await logApiRequest({
+                endpoint: `/api/job/result/${jobId}`,
+                apiKey,
+                method: 'GET',
+                responseBody,
+                responseTimeMs: Date.now() - startTime,
+                statusCode: 404,
+                clientIp,
+                userAgent,
+                jobId,
+                errorMessage: 'Job result not found'
+            });
+            return NextResponse.json(responseBody, { status: 404 });
+        }
+
+        // Check if job failed
+        if (!jobResult.success) {
+            const responseBody = { 
+                error: jobResult.error || 'Query execution failed',
+                metadata: jobResult.metadata 
+            };
+            await logApiRequest({
+                endpoint: `/api/job/result/${jobId}`,
+                apiKey,
+                method: 'GET',
+                responseBody,
+                responseTimeMs: Date.now() - startTime,
+                statusCode: 500,
+                clientIp,
+                userAgent,
+                jobId,
+                errorMessage: jobResult.error
+            });
+            return NextResponse.json(responseBody, { status: 500 });
+        }
+
+        // Check if result exists and is an array
+        if (!jobResult.result || !Array.isArray(jobResult.result)) {
+            const responseBody = { error: 'Invalid query result format' };
+            await logApiRequest({
+                endpoint: `/api/job/result/${jobId}`,
+                apiKey,
+                method: 'GET',
+                responseBody,
+                responseTimeMs: Date.now() - startTime,
+                statusCode: 500,
+                clientIp,
+                userAgent,
+                jobId,
+                errorMessage: 'Invalid query result format'
+            });
+            return NextResponse.json(responseBody, { status: 500 });
         }
 
         // Create ZIP archive
@@ -75,24 +148,33 @@ export async function GET(
             zlib: { level: 9 }
         });
 
-        // Convert result to CSV
-        const csvContent = convertToCSV(job.result);
-        archive.append(Buffer.from(csvContent), { name: 'result.csv' });
-        archive.finalize();
+        // Add metadata file
+        const metadata = {
+            ...jobResult.metadata,
+            processedAt: jobResult.processedAt,
+            downloadedAt: new Date()
+        };
+        archive.append(JSON.stringify(metadata, null, 2), { name: 'metadata.json' });
 
-        // Create readable stream from archive
-        const chunks: Buffer[] = [];
-        archive.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
-        
-        const buffer = await new Promise<Buffer>((resolve, reject) => {
+        // Add results as JSON file
+        archive.append(JSON.stringify(jobResult.result, null, 2), { name: 'result.json' });
+
+        // Create buffer from archive
+        const bufferPromise = new Promise<Buffer>((resolve, reject) => {
+            const chunks: Uint8Array[] = [];
+            archive.on('data', (chunk: Uint8Array) => chunks.push(chunk));
             archive.on('end', () => resolve(Buffer.concat(chunks)));
             archive.on('error', reject);
         });
 
+        archive.finalize();
+
+        const buffer = await bufferPromise;
+
         // Log successful download
         await logApiRequest({
             endpoint: `/api/job/result/${jobId}`,
-            apiKey: apiKey || '',
+            apiKey,
             method: 'GET',
             responseTimeMs: Date.now() - startTime,
             statusCode: 200,
@@ -101,7 +183,7 @@ export async function GET(
             jobId,
             jobStatus: 'completed',
             jobDownloadLink: `/api/job/result/${jobId}`,
-            affectedRows: job.result?.length
+            affectedRows: jobResult.metadata.rowCount
         });
 
         // Return ZIP file
@@ -113,11 +195,11 @@ export async function GET(
         });
     } catch (error: any) {
         console.error('Error in job result endpoint:', error);
-        const responseBody = { error: error.message };
+        const responseBody = { error: error.message || 'Internal server error' };
         
         await logApiRequest({
             endpoint: `/api/job/result/${jobId}`,
-            apiKey: apiKey || '',
+            apiKey,
             method: 'GET',
             responseBody,
             responseTimeMs: Date.now() - startTime,
@@ -130,20 +212,4 @@ export async function GET(
 
         return NextResponse.json(responseBody, { status: 500 });
     }
-}
-
-function convertToCSV(data: any[]): string {
-    if (!data || !data.length) return '';
-    
-    const headers = Object.keys(data[0]);
-    const csvRows = [
-        headers.join(','),
-        ...data.map(row => 
-            headers.map(header => 
-                JSON.stringify(row[header] ?? '')
-            ).join(',')
-        )
-    ];
-    
-    return csvRows.join('\n');
 }

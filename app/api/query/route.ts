@@ -1,33 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery } from '@/lib/db';
-import { verifyApiKey } from '@/lib/auth';
-import { logApiRequest } from '@/lib/logger';
-import { getCachedQueryResult, cacheQueryResult } from '@/lib/redis';
-import { randomUUID } from 'crypto';
+import { executeQuery } from "@/lib/db";
+import { verifyApiKey } from "@/lib/auth";
+import { logApiRequest } from "@/lib/logger";
+import { getCachedQueryResult, cacheQueryResult } from "@/lib/redis";
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
     const startTime = Date.now();
-    const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.split(' ')[1];
-    const clientIp = request.headers.get('x-forwarded-for') || request.ip;
-    const userAgent = request.headers.get('user-agent');
+    const authHeader = request.headers.get('authorization');
+    const apiKey = authHeader ? authHeader.split(' ')[1] : null;
+    const clientIp = request.headers.get('x-forwarded-for') || request.ip || '';
+    const userAgent = request.headers.get('user-agent') || '';
 
     try {
         // Verify API key
-        const keyVerification = await verifyApiKey(apiKey);
+        const keyVerification = await verifyApiKey(apiKey || '');
         if (!keyVerification.isValid) {
             const responseBody = { error: keyVerification.error || 'Invalid API key' };
             await logApiRequest({
                 endpoint: '/api/query',
-                apiKey: apiKey || 'invalid',
+                apiKey: apiKey || '',
                 method: 'POST',
                 responseBody,
                 responseTimeMs: Date.now() - startTime,
                 statusCode: 401,
                 clientIp,
                 userAgent,
-                errorMessage: keyVerification.error
+                errorMessage: keyVerification.error || ''
             });
             return NextResponse.json(responseBody, { status: 401 });
         }
@@ -51,6 +51,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(responseBody, { status: 400 });
         }
 
+        console.log('Executing query:', query);
+
         // Cache'den sonuç kontrolü
         let result;
         if (!skipCache) {
@@ -72,16 +74,16 @@ export async function POST(request: NextRequest) {
                     statusCode: 200,
                     clientIp,
                     userAgent,
-                    queryText: query,
-                    cacheHit: true
+                    queryText: query
                 });
 
-                return NextResponse.json(responseBody, { status: 200 });
+                return NextResponse.json(responseBody);
             }
         }
 
         // Cache'de yoksa veya cache atlanmışsa sorguyu çalıştır
         result = await executeQuery(query, parameters);
+        console.log('Query result:', result);
 
         // Sonucu cache'e kaydet (skipCache false ise)
         if (!skipCache) {
@@ -104,11 +106,10 @@ export async function POST(request: NextRequest) {
             statusCode: 200,
             clientIp,
             userAgent,
-            queryText: query,
-            cacheHit: false
+            queryText: query
         });
 
-        return NextResponse.json(responseBody, { status: 200 });
+        return NextResponse.json(responseBody);
     } catch (error: any) {
         console.error('Error in query endpoint:', error);
         const responseBody = { error: error.message || 'Internal server error' };
@@ -122,7 +123,7 @@ export async function POST(request: NextRequest) {
             statusCode: 500,
             clientIp,
             userAgent,
-            errorMessage: error.message
+            errorMessage: error.message || ''
         });
 
         return NextResponse.json(responseBody, { status: 500 });

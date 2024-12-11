@@ -1,104 +1,40 @@
-import { Redis } from '@upstash/redis';
+import Redis from 'ioredis';
 import crypto from 'crypto';
 
 // Cache ayarları
 const CACHE_TTL = 60 * 60; // 1 saat
 const MAX_CACHE_SIZE = 1000; // maksimum cache kayıt sayısı
 
-// Redis bağlantısı için mock veriler
-const mockData = {
-  'ratelimit:query': new Set(),
-  'ratelimit:analytics': new Set(),
-  'ratelimit:api': new Set(),
-  'cache:queries': new Map(),
-  'cache:metadata': new Map()
-};
-
-class MockRedis {
-  async zcount(key: string, min: number, max: number): Promise<number> {
-    const now = Date.now();
-    const set = mockData[key as keyof typeof mockData];
-    // Süresi geçmiş kayıtları temizle
-    set.forEach((timestamp: number) => {
-      if (timestamp < min) {
-        set.delete(timestamp);
-      }
-    });
-    return set.size;
+// Redis bağlantısı
+const redis = new Redis({
+  host: process.env.REDIS_HOST || 'localhost',
+  port: parseInt(process.env.REDIS_PORT || '6379'),
+  password: process.env.REDIS_PASSWORD || undefined,
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false,
+  retryStrategy(times) {
+    const delay = Math.min(times * 50, 2000);
+    return delay;
   }
+});
 
-  async zadd(key: string, timestamp: number, value: any): Promise<number> {
-    const set = mockData[key as keyof typeof mockData] as Set<number>;
-    set.add(timestamp);
-    return 1;
-  }
+// Bağlantı durumunu izle
+redis.on('error', (error) => {
+  console.error('Redis connection error:', error);
+});
 
-  async get(key: string): Promise<any> {
-    if (key.startsWith('cache:queries:')) {
-      const cache = mockData['cache:queries'] as Map<string, any>;
-      return cache.get(key);
-    }
-    return null;
-  }
-
-  async set(key: string, value: any, options?: { ex?: number }): Promise<'OK'> {
-    if (key.startsWith('cache:queries:')) {
-      const cache = mockData['cache:queries'] as Map<string, any>;
-      cache.set(key, value);
-
-      // Cache metadata güncelle
-      const metadata = mockData['cache:metadata'] as Map<string, any>;
-      metadata.set(key, {
-        timestamp: Date.now(),
-        ttl: options?.ex || CACHE_TTL
-      });
-
-      // Cache boyutu kontrolü
-      if (cache.size > MAX_CACHE_SIZE) {
-        // En eski kayıtları sil
-        const sortedEntries = Array.from(metadata.entries())
-          .sort(([, a], [, b]) => a.timestamp - b.timestamp);
-        
-        const entriesToDelete = sortedEntries.slice(0, Math.floor(MAX_CACHE_SIZE * 0.2)); // %20'sini sil
-        entriesToDelete.forEach(([key]) => {
-          cache.delete(key);
-          metadata.delete(key);
-        });
-      }
-    }
-    return 'OK';
-  }
-
-  async del(key: string): Promise<number> {
-    if (key.startsWith('cache:queries:')) {
-      const cache = mockData['cache:queries'] as Map<string, any>;
-      const metadata = mockData['cache:metadata'] as Map<string, any>;
-      
-      const deleted = cache.delete(key);
-      metadata.delete(key);
-      
-      return deleted ? 1 : 0;
-    }
-    return 0;
-  }
-}
-
-// Gerçek Redis yerine mock kullanıyoruz
-export const redis = new MockRedis() as unknown as Redis;
+redis.on('connect', () => {
+  console.log('Connected to Redis server');
+});
 
 // Cache key oluşturma fonksiyonu
 export function createCacheKey(query: string, params?: Record<string, any>): string {
-  const data = {
+  const data = JSON.stringify({
     query,
     params: params || {}
-  };
+  });
   
-  const hash = crypto
-    .createHash('sha256')
-    .update(JSON.stringify(data))
-    .digest('hex');
-  
-  return `cache:queries:${hash}`;
+  return `cache:queries:${crypto.createHash('sha256').update(data).digest('hex')}`;
 }
 
 // Cache'den veri alma
@@ -109,9 +45,9 @@ export async function getCachedQueryResult<T>(query: string, params?: Record<str
     const cachedData = await redis.get(cacheKey);
     if (cachedData) {
       // Cache metadata kontrolü
-      const metadata = mockData['cache:metadata'].get(cacheKey);
+      const metadata = await redis.get(`${cacheKey}:metadata`);
       if (metadata) {
-        const { timestamp, ttl } = metadata;
+        const { timestamp, ttl } = JSON.parse(metadata);
         if (Date.now() - timestamp < ttl * 1000) {
           console.log('Cache hit:', cacheKey);
           return JSON.parse(cachedData);
@@ -119,6 +55,7 @@ export async function getCachedQueryResult<T>(query: string, params?: Record<str
       }
       // TTL süresi dolmuş, cache'i temizle
       await redis.del(cacheKey);
+      await redis.del(`${cacheKey}:metadata`);
     }
   } catch (error) {
     console.error('Error getting cached data:', error);
@@ -137,7 +74,13 @@ export async function cacheQueryResult<T>(
   const cacheKey = createCacheKey(query, params);
   
   try {
-    await redis.set(cacheKey, JSON.stringify(result), { ex: ttl });
+    await redis.set(cacheKey, JSON.stringify(result));
+    await redis.set(`${cacheKey}:metadata`, JSON.stringify({
+      timestamp: Date.now(),
+      ttl
+    }));
+    await redis.expire(cacheKey, ttl);
+    await redis.expire(`${cacheKey}:metadata`, ttl);
     console.log('Cached result:', cacheKey);
   } catch (error) {
     console.error('Error caching result:', error);
@@ -150,8 +93,53 @@ export async function invalidateQueryCache(query: string, params?: Record<string
   
   try {
     await redis.del(cacheKey);
+    await redis.del(`${cacheKey}:metadata`);
     console.log('Invalidated cache:', cacheKey);
   } catch (error) {
     console.error('Error invalidating cache:', error);
   }
 }
+
+// Rate limit işlemleri
+export async function recordRateLimit(key: string, timestamp: number): Promise<void> {
+  try {
+    // Yeni kayıt ekle
+    await redis.zadd(key, timestamp, timestamp.toString());
+    console.log(`Recorded rate limit for ${key} at ${timestamp}`);
+  } catch (error) {
+    console.error('Error recording rate limit:', error);
+  }
+}
+
+export async function getRateLimitCount(key: string, windowStart: number, windowEnd: number): Promise<number> {
+  try {
+    const count = await redis.zcount(key, windowStart, windowEnd);
+    console.log(`Rate limit count for ${key}: ${count} (${windowStart} - ${windowEnd})`);
+    return count;
+  } catch (error) {
+    console.error('Error getting rate limit count:', error);
+    return 0;
+  }
+}
+
+export async function cleanupRateLimits(key: string, olderThan: number): Promise<void> {
+  try {
+    const deleted = await redis.zremrangebyscore(key, 0, olderThan);
+    console.log(`Cleaned up ${deleted} old rate limit records for ${key}`);
+  } catch (error) {
+    console.error('Error cleaning up rate limits:', error);
+  }
+}
+
+// Redis bağlantı durumunu kontrol etme
+export async function checkRedisConnection(): Promise<boolean> {
+  try {
+    const pong = await redis.ping();
+    return pong === 'PONG';
+  } catch (error) {
+    console.error('Redis connection error:', error);
+    return false;
+  }
+}
+
+export { redis };

@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 import { verifyApiKey } from '@/lib/auth';
-import { randomUUID } from 'crypto';
 import { logApiRequest } from '@/lib/logger';
 import { rateLimit } from '@/lib/rate-limit';
 import { addBigQueryJob } from '@/lib/queue';
 
 export async function POST(request: NextRequest) {
     const startTime = Date.now();
-    const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.split(' ')[1];
-    const clientIp = request.headers.get('x-forwarded-for') || request.ip;
-    const userAgent = request.headers.get('user-agent');
+    const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.split(' ')[1] || '';
+    const clientIp = request.headers.get('x-forwarded-for') || request.ip || undefined;
+    const userAgent = request.headers.get('user-agent') || undefined;
     
     try {
         // Verify API key
@@ -50,11 +49,9 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const jobId = randomUUID();
 
         // BigQuery işini kuyruğa ekle
         const job = await addBigQueryJob({
-            jobId,
             query: body.query,
             parameters: body.parameters,
             requestInfo: {
