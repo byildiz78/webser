@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "npx concurrently \"next dev\" \"node bull-board-server.js\"",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "bull-board": "node bull-board-server.js"
   },
   "dependencies": {
     "@bull-board/api": "^6.5.3",
@@ -56,6 +57,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
+    "concurrently": "^8.2.2",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.3.0",
     "eslint": "8.49.0",

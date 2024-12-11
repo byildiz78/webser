@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { BsSpeedometer2, BsBook } from 'react-icons/bs';
 import { TbDatabase } from 'react-icons/tb';
 import { FiServer } from 'react-icons/fi';
+import { MdQueue } from 'react-icons/md';
 import { SqlQueryForm } from '../components/sql-query-form';
 import { useState, useEffect } from 'react';
 
@@ -96,7 +97,7 @@ export default function Home() {
 
         {/* Quick Links */}
         <div
-          className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto mb-16"
+          className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-16"
         >
           <Link href="/analytics" className="group">
             <div 
@@ -129,6 +130,22 @@ export default function Home() {
               </div>
             </div>
           </Link>
+
+          <a href="http://localhost:3100" target="_blank" rel="noopener noreferrer" className="group">
+            <div 
+              className="bg-gray-800/30 backdrop-blur-lg p-6 rounded-xl border border-gray-700/50 shadow-lg group-hover:shadow-xl group-hover:border-green-500/50 transition-all duration-300"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="p-3 bg-green-500/10 rounded-lg group-hover:bg-green-500/20 transition duration-300">
+                  <MdQueue className="w-6 h-6 text-green-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Bull Board</h3>
+                  <p className="text-gray-300">Kuyruk yönetimi ve izleme</p>
+                </div>
+              </div>
+            </div>
+          </a>
         </div>
 
         {/* SQL Query Section */}

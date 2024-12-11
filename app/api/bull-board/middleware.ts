@@ -1,15 +1,20 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { verifyApiKey } from '@/lib/auth';
 
 export async function middleware(request: NextRequest) {
-    const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.split(' ')[1];
+    const apiKey = request.headers.get('x-api-key');
+    
+    console.log('Bull Board middleware:', {
+        apiKey,
+        path: request.nextUrl.pathname,
+        method: request.method
+    });
 
     // API key kontrolü
-    const keyVerification = await verifyApiKey(apiKey);
-    if (!keyVerification.isValid) {
+    if (apiKey !== '123') {
+        console.log('Invalid API key:', apiKey);
         return NextResponse.json(
-            { error: keyVerification.error || 'Invalid API key' },
+            { error: 'Invalid API key' },
             { status: 401 }
         );
     }

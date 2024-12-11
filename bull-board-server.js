@@ -3,7 +3,7 @@ const session = require('express-session');
 const { createBullBoard } = require('@bull-board/api');
 const { BullMQAdapter } = require('@bull-board/api/bullMQAdapter');
 const { ExpressAdapter } = require('@bull-board/express');
-const { Queue } = require('bullmq');
+const { Queue, Worker } = require('bullmq');
 const IORedis = require('ioredis');
 
 // Redis bağlantısı
@@ -11,13 +11,123 @@ const connection = new IORedis({
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '6379'),
     password: process.env.REDIS_PASSWORD,
+    maxRetriesPerRequest: null
 });
 
+// Rate limit ayarları
+const rateLimits = {
+    'default': { limit: 100, window: 60 * 1000 }, // 100 istek/dakika
+    'high': { limit: 1000, window: 60 * 1000 }, // 1000 istek/dakika
+    'low': { limit: 10, window: 60 * 1000 } // 10 istek/dakika
+};
+
 // Queue'ları oluştur
-const analyticsQueue = new Queue('analytics', { connection });
-const bigQueryQueue = new Queue('bigquery', { connection });
-const rateLimitQueue = new Queue('rate-limit', { connection });
-const instantQueryQueue = new Queue('instant-query', { connection });
+const queueConfigs = [
+    { name: 'analytics', concurrency: 2 },
+    { name: 'bigquery', concurrency: 2 },
+    { name: 'rate-limit', concurrency: 2 },
+    { name: 'instant-query', concurrency: 2 }
+];
+
+// Queue ve Worker'ları oluştur
+const queueMap = new Map();
+
+queueConfigs.forEach(config => {
+    // Queue'yu oluştur
+    const queue = new Queue(config.name, { 
+        connection,
+        defaultJobOptions: {
+            attempts: 3,
+            backoff: {
+                type: 'exponential',
+                delay: 1000
+            },
+            removeOnComplete: false,
+            removeOnFail: false
+        }
+    });
+
+    // Worker'ı oluştur
+    const worker = new Worker(
+        config.name,
+        async job => {
+            console.log(`[${config.name}] Processing job ${job.id}`);
+            await job.updateProgress(0);
+
+            if (config.name === 'rate-limit') {
+                const { apiKey, endpoint } = job.data;
+                const limit = rateLimits[apiKey] || rateLimits.default;
+                
+                // Rate limit kontrolü
+                const now = Date.now();
+                const key = `${apiKey}:${endpoint}:${Math.floor(now / limit.window)}`;
+                const count = await connection.incr(key);
+                await connection.expire(key, Math.ceil(limit.window / 1000));
+
+                if (count > limit.limit) {
+                    throw new Error(`Rate limit exceeded for ${apiKey}. Limit: ${limit.limit} requests per ${limit.window/1000} seconds`);
+                }
+
+                // Rate limit durumunu güncelle
+                const remaining = limit.limit - count;
+                const resetTime = Math.ceil((Math.floor(now / limit.window) + 1) * limit.window);
+
+                await job.updateProgress(100);
+                return {
+                    success: true,
+                    limit: limit.limit,
+                    remaining,
+                    reset: new Date(resetTime).toISOString(),
+                    window: `${limit.window/1000} seconds`
+                };
+            } else {
+                // Diğer worker'lar için simüle edilmiş iş
+                for (let i = 0; i <= 100; i += 20) {
+                    await job.updateProgress(i);
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+            }
+            
+            console.log(`[${config.name}] Completed job ${job.id}`);
+            return { processed: true, jobId: job.id, completedAt: new Date() };
+        },
+        {
+            connection,
+            concurrency: config.concurrency,
+            prefix: 'bull',
+            metrics: { 
+                maxDataPoints: 24 * 60 * 60,
+                collectInterval: 1000
+            },
+            autorun: true,
+            lockDuration: 30000,
+            lockRenewTime: 15000
+        }
+    );
+
+    // Worker event listeners
+    worker.on('completed', job => {
+        console.log(`[${config.name}] Job ${job.id} completed successfully:`, job.returnvalue);
+    });
+
+    worker.on('failed', (job, err) => {
+        console.error(`[${config.name}] Job ${job.id} failed:`, err.message);
+    });
+
+    worker.on('active', job => {
+        console.log(`[${config.name}] Job ${job.id} started processing`);
+    });
+
+    worker.on('progress', (job, progress) => {
+        console.log(`[${config.name}] Job ${job.id} progress:`, progress);
+    });
+
+    worker.on('error', err => {
+        console.error(`[${config.name}] Worker error:`, err);
+    });
+
+    queueMap.set(config.name, { queue, worker });
+});
 
 const app = express();
 
@@ -33,22 +143,43 @@ app.use(express.urlencoded({ extended: true }));
 
 // Bull Board setup
 const serverAdapter = new ExpressAdapter();
-serverAdapter.setBasePath('/admin/queues');
 
 createBullBoard({
-    queues: [
-        new BullMQAdapter(analyticsQueue),
-        new BullMQAdapter(bigQueryQueue),
-        new BullMQAdapter(rateLimitQueue),
-        new BullMQAdapter(instantQueryQueue)
-    ],
+    queues: Array.from(queueMap.entries()).map(([name, { queue, worker }]) => 
+        new BullMQAdapter(queue, { 
+            readOnlyMode: false,
+            prefix: 'bull',
+            worker,
+            description: name === 'rate-limit' 
+                ? `Rate Limits - Default: ${rateLimits.default.limit}/min, High: ${rateLimits.high.limit}/min, Low: ${rateLimits.low.limit}/min`
+                : `${name} worker (concurrency: 2)`,
+            options: {
+                metrics: true,
+                retryOnError: true,
+                retryDelay: 1000,
+                retryLimit: 3
+            }
+        })
+    ),
     serverAdapter,
+    options: {
+        uiConfig: {
+            boardTitle: 'Queue Dashboard',
+            boardDescription: 'Worker concurrency: 2 per queue',
+            queueList: {
+                expanded: true
+            },
+            misc: {
+                pollInterval: 1000
+            }
+        }
+    }
 });
 
 // Login sayfası
 app.get('/', (req, res) => {
     if (req.session.isAuthenticated) {
-        res.redirect('/admin/queues');
+        res.redirect('/ui');
         return;
     }
     
@@ -127,7 +258,7 @@ app.post('/login', (req, res) => {
     
     if (apiKey === '123') {
         req.session.isAuthenticated = true;
-        res.redirect('/admin/queues');
+        res.redirect('/ui');
     } else {
         req.session.error = 'Invalid API key';
         res.redirect('/');
@@ -135,7 +266,7 @@ app.post('/login', (req, res) => {
 });
 
 // Authentication middleware
-app.use('/admin/queues', (req, res, next) => {
+app.use('/ui', (req, res, next) => {
     if (!req.session.isAuthenticated) {
         res.redirect('/');
         return;
@@ -144,14 +275,44 @@ app.use('/admin/queues', (req, res, next) => {
 });
 
 // Bull Board router
-app.use('/admin/queues', serverAdapter.getRouter());
+serverAdapter.setBasePath('/ui');
+app.use('/ui', serverAdapter.getRouter());
 
-// Test endpoint
+// Test endpoint - Rate Limit
+app.get('/test-rate-limit', async (req, res) => {
+    try {
+        const { queue } = queueMap.get('rate-limit');
+        const apiKey = req.query.type || 'default'; // 'default', 'high', 'low'
+        const endpoint = '/api/test';
+
+        const job = await queue.add('rate-limit-check', {
+            apiKey,
+            endpoint,
+            timestamp: new Date().toISOString()
+        });
+
+        res.json({ message: 'Rate limit check started', jobId: job.id });
+    } catch (error) {
+        console.error('Error checking rate limit:', error);
+        res.status(500).json({ error: 'Failed to check rate limit' });
+    }
+});
+
+// Test endpoint - Analytics
 app.get('/test-queue', async (req, res) => {
     try {
-        const job = await analyticsQueue.add('test-job', {
+        const { queue } = queueMap.get('analytics');
+        const job = await queue.add('test-job', {
             data: 'test data',
             timestamp: new Date().toISOString()
+        }, {
+            attempts: 3,
+            backoff: {
+                type: 'exponential',
+                delay: 1000
+            },
+            removeOnComplete: false,
+            removeOnFail: false
         });
         res.json({ message: 'Test job added successfully', jobId: job.id });
     } catch (error) {
@@ -160,7 +321,16 @@ app.get('/test-queue', async (req, res) => {
     }
 });
 
-const port = process.env.BULL_BOARD_PORT || 3001;
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+    console.log('Shutting down workers...');
+    for (const { worker } of queueMap.values()) {
+        await worker.close();
+    }
+    process.exit(0);
+});
+
+const port = process.env.BULL_BOARD_PORT || 3100;
 app.listen(port, () => {
     console.log(`Queue Dashboard running on http://localhost:${port}`);
 });
