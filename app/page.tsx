@@ -62,7 +62,9 @@ export default function Home() {
   };
 
   useEffect(() => {
-    checkConnection();
+    if(selectedDatabase){
+      checkConnection();
+    }
   }, [selectedDatabase]);
 
   return (
