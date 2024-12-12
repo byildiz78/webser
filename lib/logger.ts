@@ -1,50 +1,22 @@
-import { executeQuery } from './db';
+import { Database } from "./database";
+import { Q_INSERT_WEBSERVICELOG_TABLE } from "./queries";
 
-const CREATE_LOG_TABLE_QUERY = `
-IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'webservice_logs')
-BEGIN
-    CREATE TABLE webservice_logs (
-        id BIGINT IDENTITY(1,1) PRIMARY KEY,
-        request_timestamp DATETIME2 DEFAULT GETDATE(),
-        endpoint NVARCHAR(255),
-        api_key NVARCHAR(255),
-        request_method NVARCHAR(10),
-        request_body NVARCHAR(MAX),
-        response_body NVARCHAR(MAX),
-        response_time_ms INT,
-        status_code INT,
-        error_message NVARCHAR(MAX),
-        client_ip NVARCHAR(50),
-        job_id NVARCHAR(36),
-        job_status NVARCHAR(20),
-        job_download_link NVARCHAR(255),
-        query_text NVARCHAR(MAX),
-        affected_rows INT,
-        user_agent NVARCHAR(500)
-    );
 
-    CREATE INDEX idx_request_timestamp ON webservice_logs(request_timestamp);
-    CREATE INDEX idx_endpoint ON webservice_logs(endpoint);
-    CREATE INDEX idx_api_key ON webservice_logs(api_key);
-    CREATE INDEX idx_status_code ON webservice_logs(status_code);
-    CREATE INDEX idx_job_id ON webservice_logs(job_id);
-END
-`;
-
+/*
 export async function initializeLogTable() {
     try {
-        console.log('Creating log table if not exists...');
-        await executeQuery(CREATE_LOG_TABLE_QUERY);
-        console.log('Log table check/creation completed successfully');
+        await executeQuery(Q_CREATE_WEBSERVICELOG_TABLE);
     } catch (error) {
-        console.error('Error initializing log table:', error);
+        console.error('Error Creating Log Table', error);
         throw error;
     }
 }
+*/
 
 export async function logApiRequest({
     endpoint,
     apiKey,
+    databaseId,
     method,
     requestBody,
     responseBody,
@@ -61,6 +33,7 @@ export async function logApiRequest({
 }: {
     endpoint: string;
     apiKey: string;
+    databaseId: string;
     method: string;
     requestBody?: any;
     responseBody?: any;
@@ -73,74 +46,30 @@ export async function logApiRequest({
     jobDownloadLink?: string;
     queryText?: string;
     affectedRows?: number;
-    userAgent?: string;
+    userAgent?: string | null;
 }) {
-    const query = `
-        INSERT INTO webservice_logs (
-            endpoint,
-            api_key,
-            request_method,
-            request_body,
-            response_body,
-            response_time_ms,
-            status_code,
-            error_message,
-            client_ip,
-            job_id,
-            job_status,
-            job_download_link,
-            query_text,
-            affected_rows,
-            user_agent
-        ) VALUES (
-            @endpoint,
-            @apiKey,
-            @method,
-            @requestBody,
-            @responseBody,
-            @responseTimeMs,
-            @statusCode,
-            @errorMessage,
-            @clientIp,
-            @jobId,
-            @jobStatus,
-            @jobDownloadLink,
-            @queryText,
-            @affectedRows,
-            @userAgent
-        )
-    `;
-
-    const params = {
-        endpoint,
-        apiKey,
-        method,
-        requestBody: requestBody ? JSON.stringify(requestBody) : null,
-        responseBody: responseBody ? JSON.stringify(responseBody) : null,
-        responseTimeMs,
-        statusCode,
-        errorMessage: errorMessage || null,
-        clientIp: clientIp || null,
-        jobId: jobId || null,
-        jobStatus: jobStatus || null,
-        jobDownloadLink: jobDownloadLink || null,
-        queryText: queryText || null,
-        affectedRows: affectedRows || null,
-        userAgent: userAgent || null
-    };
-
     try {
-        console.log('Logging API request:', {
+        const params = {
             endpoint,
+            apiKey,
             method,
+            requestBody: requestBody ? JSON.stringify(requestBody) : null,
+            responseBody: responseBody ? JSON.stringify(responseBody) : null,
+            responseTimeMs,
             statusCode,
-            responseTimeMs
-        });
-        
-        await executeQuery(query, params);
-        console.log('API request logged successfully');
+            errorMessage: errorMessage || null,
+            clientIp: clientIp || null,
+            jobId: jobId || null,
+            jobStatus: jobStatus || null,
+            jobDownloadLink: jobDownloadLink || null,
+            queryText: queryText || null,
+            affectedRows: affectedRows || null,
+            userAgent: userAgent || null
+        };
+        const database = new Database();
+
+        await database.query(Q_INSERT_WEBSERVICELOG_TABLE, databaseId, apiKey, params);
     } catch (error) {
         console.error('Error logging API request:', error);
-        // Log hatası olsa bile uygulamanın çalışmasını engellemiyoruz
     }
 }

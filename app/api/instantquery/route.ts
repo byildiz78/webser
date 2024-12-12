@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyApiKey } from '@/lib/auth';
-import { logApiRequest } from '@/lib/logger';
-import { instantQueryQueue } from '@/lib/queue/instantquery.queue';
-import { rateLimit } from '@/lib/rate-limit';
-import QueueConfig, { QueueType } from '@/lib/queue/config';
+import { verifyApiKey } from '@/x/auth';
+import { logApiRequest } from '@/x/logger';
+import { instantQueryQueue } from '@/x/queue/instantquery.queue';
+import { rateLimit } from '@/x/rate-limit';
+import QueueConfig, { QueueType } from '@/x/queue/config';
 
 export async function POST(request: NextRequest) {
     const startTime = Date.now();

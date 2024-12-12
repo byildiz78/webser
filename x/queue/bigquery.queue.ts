@@ -1,5 +1,5 @@
 import QueueConfig, { QueueType } from './config';
-import { executeQuery } from '@/lib/db';
+import { executeQuery } from '@/x/db';
 import { JobsOptions } from 'bullmq';
 
 interface BigQueryJobData {

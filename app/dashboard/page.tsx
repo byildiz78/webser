@@ -1,5 +1,5 @@
 import { StatsCard } from "@/components/dashboard/stats-card";
-import { executeQuery } from "@/lib/db";
+import { executeQuery } from "@/x/db";
 
 async function getDashboardStats() {
   const today = new Date().toISOString().split('T')[0];

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery } from '@/lib/db';
-import { verifyApiKey } from '@/lib/auth';
-import { logApiRequest } from '@/lib/logger';
-import { rateLimit } from '@/lib/rate-limit';
-import { addBigQueryJob } from '@/lib/queue';
+import { executeQuery } from '@/x/db';
+import { verifyApiKey } from '@/x/auth';
+import { logApiRequest } from '@/x/logger';
+import { rateLimit } from '@/x/rate-limit';
+import { addBigQueryJob } from '@/x/queue';
 
 export async function POST(request: NextRequest) {
     const startTime = Date.now();

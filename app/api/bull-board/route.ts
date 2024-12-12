@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createBullBoard } from '@bull-board/api';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { ExpressAdapter } from '@bull-board/express';
-import { QueueConfig, QueueType } from '@/lib/queue';
+import { QueueConfig, QueueType } from '@/x/queue';
 
 // Initialize queues first
 const analyticsQueue = QueueConfig.getQueue(QueueType.ANALYTICS);

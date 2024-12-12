@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery } from "@/lib/db";
-import { verifyApiKey } from "@/lib/auth";
-import { logApiRequest } from "@/lib/logger";
-import { getCachedQueryResult, cacheQueryResult } from "@/lib/redis";
+import { executeQuery } from "@/x/db";
+import { verifyApiKey } from "@/x/auth";
+import { logApiRequest } from "@/x/logger";
+import { getCachedQueryResult, cacheQueryResult } from "@/x/redis";
 
 export const dynamic = 'force-dynamic';
 

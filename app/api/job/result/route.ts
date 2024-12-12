@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyApiKey } from '@/lib/auth';
-import { QueueConfig, QueueType } from '@/lib/queue';
+import { verifyApiKey } from '@/x/auth';
+import { QueueConfig, QueueType } from '@/x/queue';
 
 export async function GET(request: NextRequest) {
     const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.split(' ')[1];
