@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery } from '@/lib/db';
-import { verifyApiKey } from '@/lib/auth';
+import { executeQuery } from '@/x/db';
+import { verifyApiKey } from '@/x/auth';
 
 export async function POST(request: NextRequest) {
     const apiKey = request.headers.get('x-api-key') || request.headers.get('authorization')?.split(' ')[1];

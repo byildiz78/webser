@@ -553,3 +553,107 @@ paths:
                 properties:
                   error:
                     type: string
+
+  /api/database:
+    get:
+      summary: List all tenants and their database IDs
+      description: Returns a list of all tenants and their corresponding database IDs
+      responses:
+        '200':
+          description: Successfully retrieved all tenant database IDs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    tenantId:
+                      type: string
+                      example: "tavukdunyasi"
+                    databaseId:
+                      type: string
+                      example: "3"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "An unexpected error occurred"
+                  details:
+                    type: object
+                    properties:
+                      server:
+                        type: string
+                      database:
+                        type: string
+                      user:
+                        type: string
+
+  /api/database/{tenantId}:
+    get:
+      summary: Get database ID for a tenant or list all tenants
+      description: Returns the database ID for a specific tenant. Use "all" or leave empty to get all tenants and their database IDs.
+      parameters:
+        - in: path
+          name: tenantId
+          required: true
+          schema:
+            type: string
+          description: The ID of the tenant (e.g., tavukdunyasi, kahvedunyasi, demo) or "all" to list all tenants
+          example: tavukdunyasi
+      responses:
+        '200':
+          description: Successfully retrieved database ID(s)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      databaseId:
+                        type: string
+                        example: "3"
+                  - type: array
+                    items:
+                      type: object
+                      properties:
+                        tenantId:
+                          type: string
+                          example: "tavukdunyasi"
+                        databaseId:
+                          type: string
+                          example: "3"
+        '404':
+          description: Tenant ID not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Tenant ID 'invalid' not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "An unexpected error occurred"
+                  details:
+                    type: object
+                    properties:
+                      server:
+                        type: string
+                      database:
+                        type: string
+                      user:
+                        type: string

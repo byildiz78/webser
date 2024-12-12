@@ -4,64 +4,63 @@ import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { SQLConfig } from '@/types/config';
+import axios from 'axios';
 
-export function SqlQueryForm() {
+interface SqlQueryFormProps {
+  selectedDatabase?: SQLConfig;
+}
+
+export function SqlQueryForm({
+  selectedDatabase
+}: SqlQueryFormProps) {
   const [query, setQuery] = useState('');
-  const [apiKey, setApiKey] = useState('');
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalResults, setTotalResults] = useState(0);
+  const itemsPerPage = 10;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    console.log('Submitting query:', query);
-    
     try {
-      const response = await fetch('/api/query', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({ query }),
-      });
+      const response = await axios.post(
+        `/api/${selectedDatabase?.databaseId}/query`,
+        { query },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: selectedDatabase?.apiKey,
+          }
+        }
+      );
 
-      if (!response.ok) {
-        const errorData = await response.json();
+      if (response.status !== 200) {
+        const errorData = response.data;
         throw new Error(errorData.error || 'Query execution failed');
       }
-
-      const data = await response.json();
-      console.log('Query response:', data);
-      setResult(data.result);
+      setResult(response.data);
+      setTotalResults(response.data.length);
+      setCurrentPage(1);
       setLoading(false);
     } catch (err) {
-      console.error('Query error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
       setLoading(false);
     }
   };
 
+  const totalPages = Math.ceil((result?.length || 0) / itemsPerPage);
+  const paginatedResults = result?.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
   return (
     <Card className="p-6">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="apiKey" className="block text-sm font-medium mb-2">
-            API Key
-          </label>
-          <Input
-            id="apiKey"
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Enter your API key"
-            required
-          />
-        </div>
-
+      <div className="space-y-4">
         <div>
           <label htmlFor="query" className="block text-sm font-medium mb-2">
             SQL Query
@@ -75,8 +74,8 @@ export function SqlQueryForm() {
             required
           />
         </div>
-        
-        <Button type="submit" disabled={loading || !apiKey}>
+
+        <Button disabled={loading || !selectedDatabase?.apiKey} onClick={handleSubmit}>
           {loading ? 'Executing...' : 'Execute Query'}
         </Button>
 
@@ -86,7 +85,11 @@ export function SqlQueryForm() {
 
         {result && (
           <div className="mt-4">
-            <h3 className="text-lg font-medium mb-2">Results</h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium">Results</h3>
+              <span className="text-sm text-gray-500">Total Results: {totalResults}</span>
+            </div>
+            
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -102,7 +105,7 @@ export function SqlQueryForm() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {result.map((row: any, i: number) => (
+                  {paginatedResults?.map((row: any, i: number) => (
                     <tr key={i}>
                       {Object.values(row).map((value: any, j: number) => (
                         <td
@@ -117,9 +120,31 @@ export function SqlQueryForm() {
                 </tbody>
               </table>
             </div>
+
+            {totalPages > 1 && (
+              <div className="flex justify-between items-center mt-4">
+                <Button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  variant="outline"
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-gray-500">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  variant="outline"
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </div>
         )}
-      </form>
+      </div>
     </Card>
   );
 }

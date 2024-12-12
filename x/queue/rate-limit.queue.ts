@@ -1,6 +1,6 @@
 import QueueConfig, { QueueType } from './config';
 import { Job, JobsOptions } from 'bullmq';
-import { redis } from '@/lib/redis';
+import { redis } from '@/x/redis';
 
 interface RateLimitJobData {
     key: string;

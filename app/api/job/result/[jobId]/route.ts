@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyApiKey } from '@/lib/auth';
-import { logApiRequest } from '@/lib/logger';
-import { bigqueryQueue } from '@/lib/queue';
+import { verifyApiKey } from '@/x/auth';
+import { logApiRequest } from '@/x/logger';
+import { bigqueryQueue } from '@/x/queue';
 import archiver from 'archiver';
 
 interface JobResult {

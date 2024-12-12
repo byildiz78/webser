@@ -1,6 +1,6 @@
 import { Queue, Worker, QueueScheduler, Job, QueueEvents } from 'bullmq';
 import IORedis from 'ioredis';
-import { isRetryableError, logError } from '@/lib/error';
+import { isRetryableError, logError } from '@/x/error';
 
 // Redis bağlantı yapılandırması
 const connection = new IORedis({

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { QueueConfig, QueueType } from '@/lib/queue';
+import { QueueConfig, QueueType } from '@/x/queue';
 import { Job } from 'bullmq';
 
 interface TestJobData {

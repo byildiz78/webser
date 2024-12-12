@@ -1,5 +1,5 @@
 import sql from 'mssql';
-import { initializeLogTable } from './logger';
+import { initializeLogTable } from '../lib/logger';
 
 const config: sql.config = {
   user: process.env.SQL_SERVER_USER,

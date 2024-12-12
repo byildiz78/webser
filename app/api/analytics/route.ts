@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery } from '@/lib/db';
-import { verifyApiKey } from '@/lib/auth';
-import { addAnalyticsJob } from '@/lib/queue';
+import { executeQuery } from '@/x/db';
+import { verifyApiKey } from '@/x/auth';
+import { addAnalyticsJob } from '@/x/queue';
 
 interface DateRange {
     startDate: string;
