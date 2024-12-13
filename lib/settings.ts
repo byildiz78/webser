@@ -16,8 +16,17 @@ export function getAppSettings(): AppSettings {
 
 export function getApiKey(request: NextRequest): string  {
     try {
-        return request.headers.get('authorization') || '';
+        return request.headers.get('authorization')?.replace('Bearer', '').trim() || '';
     } catch (error) {
         throw new Error(`No Authorization Found: ${error}`);
+    }
+}
+
+
+export function getUserAgent(request: NextRequest): string  {
+    try {
+        return request.headers.get('user-agent') ||  '';
+    } catch (error) {
+        throw new Error(`No UserAgent Found: ${error}`);
     }
 }

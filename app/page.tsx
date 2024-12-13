@@ -170,7 +170,7 @@ export default function Home() {
 
             {/* Quick Links */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-16">
-              <Link href="/analytics" className="group">
+              <Link target="_blank" href="/analytics" className="group">
                 <div className="bg-gray-800/30 backdrop-blur-lg p-6 rounded-xl border border-gray-700/50 shadow-lg group-hover:shadow-xl group-hover:border-blue-500/50 transition-all duration-300">
                   <div className="flex items-center space-x-4">
                     <div className="p-3 bg-purple-500/10 rounded-lg group-hover:bg-purple-500/20 transition duration-300">
@@ -186,7 +186,7 @@ export default function Home() {
                 </div>
               </Link>
 
-              <Link href="/swagger" className="group">
+              <Link target="_blank" href="/swagger" className="group">
                 <div className="bg-gray-800/30 backdrop-blur-lg p-6 rounded-xl border border-gray-700/50 shadow-lg group-hover:shadow-xl group-hover:border-yellow-500/50 transition-all duration-300">
                   <div className="flex items-center space-x-4">
                     <div className="p-3 bg-yellow-500/10 rounded-lg group-hover:bg-yellow-500/20 transition duration-300">

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { redis } from '@/x/redis';
+import { redis } from '@/lib/redis';
 
 async function getRateLimitUsage(key: string, windowMs: number) {
     const now = Date.now();
