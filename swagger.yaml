@@ -175,10 +175,215 @@ security:
   - BearerAuth: []
 
 paths:
-  /api/query:
+  /api/analytics:
+    get:
+      summary: Analitik verilerini getir
+      description: Belirtilen tarih aralığı için analitik verilerini döndürür
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: range
+          schema:
+            type: string
+            enum: [today, week, month]
+          description: Önceden tanımlanmış zaman aralığı
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+          description: Özel tarih aralığı başlangıcı
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+          description: Özel tarih aralığı sonu
+      responses:
+        '200':
+          description: Başarılı
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsResponse'
+        '400':
+          description: Geçersiz istek
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Invalid date range"
+        '500':
+          description: Sunucu hatası
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Internal server error"
+  /api/rate-limits:
+    get:
+      summary: Rate limit bilgilerini getir
+      description: Mevcut rate limit durumunu ve kullanım istatistiklerini döndürür
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Başarılı
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  limits:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                          example: "default"
+                        limit:
+                          type: integer
+                          example: 100
+                        remaining:
+                          type: integer
+                          example: 95
+                        resetTime:
+                          type: string
+                          format: date-time
+                          example: "2024-01-01T00:00:00Z"
+        '500':
+          description: Sunucu hatası
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Internal server error"
+
+  /api/database:
+    get:
+      summary: List all tenants and their database IDs
+      description: Returns a list of all tenants and their corresponding database IDs
+      responses:
+        '200':
+          description: Successfully retrieved all tenant database IDs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    tenantId:
+                      type: string
+                      example: "tavukdunyasi"
+                    databaseId:
+                      type: string
+                      example: "3"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "An unexpected error occurred"
+                  details:
+                    type: object
+                    properties:
+                      server:
+                        type: string
+                      database:
+                        type: string
+                      user:
+                        type: string
+  /api/database/{tenantId}:
+    get:
+      summary: Get database ID for a tenant or list all tenants
+      description: Returns the database ID for a specific tenant. Use "all" or leave empty to get all tenants and their database IDs.
+      parameters:
+        - in: path
+          name: tenantId
+          required: true
+          schema:
+            type: string
+          description: The ID of the tenant (e.g., tavukdunyasi, kahvedunyasi, demo) or "all" to list all tenants
+          example: tavukdunyasi
+      responses:
+        '200':
+          description: Successfully retrieved database ID(s)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      databaseId:
+                        type: string
+                        example: "3"
+                  - type: array
+                    items:
+                      type: object
+                      properties:
+                        tenantId:
+                          type: string
+                          example: "tavukdunyasi"
+                        databaseId:
+                          type: string
+                          example: "3"
+        '404':
+          description: Tenant ID not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Tenant ID 'invalid' not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "An unexpected error occurred"
+                  details:
+                    type: object
+                    properties:
+                      server:
+                        type: string
+                      database:
+                        type: string
+                      user:
+                        type: string
+  /api/{databaseId}/query:
     post:
       summary: Execute SQL query with caching support
       description: Executes a SQL query and returns the results. Results may be served from cache if available and not explicitly skipped.
+      parameters:
+        - in: path
+          name: databaseId
+          required: true
+          schema:
+            type: string
+          description: The ID of the database (e.g., 1, 2, 3)
+          example: 3
       security:
         - BearerAuth: []
       requestBody:
@@ -254,107 +459,18 @@ paths:
                   error:
                     type: string
                     example: "Internal server error"
-
-  /api/analytics:
-    get:
-      summary: Analitik verilerini getir
-      description: Belirtilen tarih aralığı için analitik verilerini döndürür
-      security:
-        - BearerAuth: []
-      parameters:
-        - in: query
-          name: range
-          schema:
-            type: string
-            enum: [today, week, month]
-          description: Önceden tanımlanmış zaman aralığı
-        - in: query
-          name: startDate
-          schema:
-            type: string
-            format: date
-          description: Özel tarih aralığı başlangıcı
-        - in: query
-          name: endDate
-          schema:
-            type: string
-            format: date
-          description: Özel tarih aralığı sonu
-      responses:
-        '200':
-          description: Başarılı
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AnalyticsResponse'
-        '400':
-          description: Geçersiz istek
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Invalid date range"
-        '500':
-          description: Sunucu hatası
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Internal server error"
-
-  /api/rate-limits:
-    get:
-      summary: Rate limit bilgilerini getir
-      description: Mevcut rate limit durumunu ve kullanım istatistiklerini döndürür
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Başarılı
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  limits:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        key:
-                          type: string
-                          example: "default"
-                        limit:
-                          type: integer
-                          example: 100
-                        remaining:
-                          type: integer
-                          example: 95
-                        resetTime:
-                          type: string
-                          format: date-time
-                          example: "2024-01-01T00:00:00Z"
-        '500':
-          description: Sunucu hatası
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Internal server error"
-
-  /api/instantquery:
+  /api/{databaseId}/instantquery:
     post:
       summary: Execute SQL query and get immediate results
       description: Executes a SQL query and returns the results immediately in JSON format
+      parameters:
+        - in: path
+          name: databaseId
+          required: true
+          schema:
+            type: string
+          description: The ID of the database (e.g., 1, 2, 3)
+          example: 3
       security:
         - BearerAuth: []
       requestBody:
@@ -416,11 +532,18 @@ paths:
                         type: string
                       errorDetails:
                         type: string
-
-  /api/bigquery:
+  /api/{databaseId}/bigquery:
     post:
       summary: Queue a SQL query for execution
       description: Submits a SQL query for asynchronous execution
+      parameters:
+        - in: path
+          name: databaseId
+          required: true
+          schema:
+            type: string
+          description: The ID of the database (e.g., 1, 2, 3)
+          example: 3
       security:
         - BearerAuth: []
       requestBody:
@@ -475,19 +598,25 @@ paths:
                 properties:
                   error:
                     type: string
-
-  /api/job/status/{jobId}:
+  /api/{databaseId}/job/status/{jobId}:
     get:
       summary: Get the current status of a query job
       security:
         - BearerAuth: []
       parameters:
+        - name: databaseId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the database (e.g., 1, 2, 3)
         - name: jobId
           in: path
           required: true
           schema:
             type: string
           description: Job identifier
+
       responses:
         '200':
           description: Job status retrieved successfully
@@ -513,14 +642,19 @@ paths:
                 properties:
                   error:
                     type: string
-
-  /api/job/result/{jobId}:
+  /api/{databaseId}/job/result/{jobId}:
     get:
       summary: Download job results
       description: Download the query results as a ZIP file containing JSON
       security:
         - BearerAuth: []
       parameters:
+        - name: databaseId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the database (e.g., 1, 2, 3)
         - name: jobId
           in: path
           required: true
@@ -554,106 +688,3 @@ paths:
                   error:
                     type: string
 
-  /api/database:
-    get:
-      summary: List all tenants and their database IDs
-      description: Returns a list of all tenants and their corresponding database IDs
-      responses:
-        '200':
-          description: Successfully retrieved all tenant database IDs
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    tenantId:
-                      type: string
-                      example: "tavukdunyasi"
-                    databaseId:
-                      type: string
-                      example: "3"
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "An unexpected error occurred"
-                  details:
-                    type: object
-                    properties:
-                      server:
-                        type: string
-                      database:
-                        type: string
-                      user:
-                        type: string
-
-  /api/database/{tenantId}:
-    get:
-      summary: Get database ID for a tenant or list all tenants
-      description: Returns the database ID for a specific tenant. Use "all" or leave empty to get all tenants and their database IDs.
-      parameters:
-        - in: path
-          name: tenantId
-          required: true
-          schema:
-            type: string
-          description: The ID of the tenant (e.g., tavukdunyasi, kahvedunyasi, demo) or "all" to list all tenants
-          example: tavukdunyasi
-      responses:
-        '200':
-          description: Successfully retrieved database ID(s)
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - type: object
-                    properties:
-                      databaseId:
-                        type: string
-                        example: "3"
-                  - type: array
-                    items:
-                      type: object
-                      properties:
-                        tenantId:
-                          type: string
-                          example: "tavukdunyasi"
-                        databaseId:
-                          type: string
-                          example: "3"
-        '404':
-          description: Tenant ID not found
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Tenant ID 'invalid' not found"
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "An unexpected error occurred"
-                  details:
-                    type: object
-                    properties:
-                      server:
-                        type: string
-                      database:
-                        type: string
-                      user:
-                        type: string

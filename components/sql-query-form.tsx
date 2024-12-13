@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { SQLConfig } from '@/types/config';
 import axios from 'axios';
+import { ApiResponse } from '@/types/tables';
 
 interface SqlQueryFormProps {
   selectedDatabase?: SQLConfig;
@@ -27,13 +28,13 @@ export function SqlQueryForm({
     setLoading(true);
     setError('');
     try {
-      const response = await axios.post(
+      const response = await axios.post<ApiResponse<any>>(
         `/api/${selectedDatabase?.databaseId}/query`,
         { query },
         {
           headers: {
             "Content-Type": "application/json",
-            Authorization: selectedDatabase?.apiKey,
+            Authorization: `Bearer ${selectedDatabase?.apiKey}`,
           }
         }
       );
@@ -42,8 +43,8 @@ export function SqlQueryForm({
         const errorData = response.data;
         throw new Error(errorData.error || 'Query execution failed');
       }
-      setResult(response.data);
-      setTotalResults(response.data.length);
+      setResult(response.data.data);
+      setTotalResults(response.data.totalRows);
       setCurrentPage(1);
       setLoading(false);
     } catch (err) {
