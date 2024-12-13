@@ -1,9 +1,9 @@
 export type ApiResponse<T> = {
-    data: T[];
-    error: string;
-    affectedRows: number;
-    queryTime: number;
-    totalRows: number;
+    data?: T[];
+    error?: string;
+    affectedRows?: number;
+    queryTime?: number;
+    totalRows?: number;
 }
 
 export type WebserviceLogs = {
