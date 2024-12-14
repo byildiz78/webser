@@ -598,6 +598,98 @@ paths:
                 properties:
                   error:
                     type: string
+  /api/{databaseId}/datamanagerquery:
+    post:
+      summary: Execute SQL query with advanced parameter processing and caching
+      description: |
+        Executes a SQL query with advanced parameter processing capabilities and caching support. 
+        Supports table-prefixed parameters (e.g., table.@param), IN clauses, and automatic parameter type conversion.
+      parameters:
+        - in: path
+          name: databaseId
+          required: true
+          schema:
+            type: string
+          description: The ID of the database (e.g., 1, 2, 3)
+          example: 3
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  description: SQL query with parameters (e.g., @param or table.@param)
+                  example: "SELECT * FROM OrderTransactions WHERE OrderTransactions.@BranchID AND OrderDateTime BETWEEN @date1 AND @date2"
+                parameters:
+                  type: object
+                  description: Query parameters with automatic type conversion
+                  example:
+                    BranchID: [1, 2, 3]
+                    date1: "2024-01-01"
+                    date2: "2024-12-31"
+                skipCache:
+                  type: boolean
+                  description: Whether to skip cache lookup and force query execution
+                  default: false
+      responses:
+        '200':
+          description: Query executed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [completed]
+                    example: "completed"
+                  result:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                    description: Query results with processed parameters
+                  fromCache:
+                    type: boolean
+                    description: Whether the result was served from cache
+                    example: true
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Query is required"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Invalid API key"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Internal server error"
   /api/{databaseId}/job/status/{jobId}:
     get:
       summary: Get the current status of a query job
@@ -687,4 +779,66 @@ paths:
                 properties:
                   error:
                     type: string
-
+    post:
+      summary: Execute SQL query with advanced parameter processing
+      description: |
+        Executes a SQL query with advanced parameter processing capabilities. 
+        Supports table-prefixed parameters (e.g., table.@param), IN clauses, and automatic parameter type conversion.
+      parameters:
+        - name: databaseId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Database identifier
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  description: SQL query with parameters (e.g., @param or table.@param)
+                  example: "SELECT * FROM OrderTransactions WHERE OrderTransactions.@BranchID AND OrderDateTime BETWEEN @date1 AND @date2"
+                parameters:
+                  type: object
+                  description: Query parameters with automatic type conversion
+                  example:
+                    BranchID: [1, 2, 3]
+                    date1: "2024-01-01"
+                    date2: "2024-12-31"
+                skipCache:
+                  type: boolean
+                  description: Whether to skip cache and execute query directly
+                  default: false
+      responses:
+        '200':
+          description: Query executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstantQueryResponse'
+        '400':
+          description: Bad request (e.g., missing query)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
