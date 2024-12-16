@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "npx concurrently \"next dev\" \"node bull-board-server.js\"",
-    "build": "next build",
+    "copy-files": "node scripts/copy-files.js",
+    "build": "next build && npm run copy-files",
     "start": "next start",
     "lint": "next lint",
     "bull-board": "node bull-board-server.js"
