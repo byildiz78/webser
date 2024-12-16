@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { redis } from '@/x/redis';
-import { QueueConfig, QueueType } from '@/x/queue';
+import { redis } from '@/lib/redis';
+import { QueueConfig, QueueType } from '@/lib/queue';
 
 interface QueueStats {
     active: number;
