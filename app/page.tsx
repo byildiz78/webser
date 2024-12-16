@@ -7,7 +7,7 @@ import { MdQueue } from "react-icons/md";
 import { SqlQueryForm } from "../components/sql-query-form";
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { HealthConnection, SQLConfig } from "@/types/config";
+import { HealthConnection, SQLConfig, ApiResponse } from "@/types/config";
 import { DatabaseSelect } from "@/components/database-select";
 
 export default function Home() {
@@ -23,13 +23,13 @@ export default function Home() {
     const getDatabases = async () => {
       try {
         setDatabasesLoading(true);
-        const res = await axios.get<SQLConfig[]>("/api/database", {
+        const res = await axios.get<ApiResponse<SQLConfig[]>>("/api/database", {
           headers: {
             "Content-Type": "application/json",
             Authorization: `111`,
           },
         });
-        setDatabases(res.data);
+        setDatabases(res.data.data);
       } catch (error) { } finally {
         setDatabasesLoading(false);
       }
@@ -86,6 +86,7 @@ export default function Home() {
         </div>) : (
 
           <>
+
             {/* Database Dropdown Section */}
             <div className="max-w-4xl mx-auto mb-8">
               <div className="bg-gray-800/30 backdrop-blur-lg p-8 rounded-xl border border-gray-700/50 shadow-lg">
