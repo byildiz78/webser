@@ -17,6 +17,12 @@ async function copyFiles() {
       path.join('.next', 'standalone', 'public')
     );
 
+    // AppSettings dosyasını kopyala
+    await fs.copy(
+        path.join('appSettings.json'),
+        path.join('.next', 'standalone', 'public', 'appSettings.json')
+        );
+
     // .env dosyalarını kopyala
     const envFiles = ['.env', '.env.local', '.env.production'];
     for (const envFile of envFiles) {
