@@ -1,0 +1,2 @@
+2024-12-16T12:54:36.534Z - ERROR: No Authorization Found: Error: Dynamic server usage: Page couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+2024-12-16T12:54:36.535Z - Database API Error: No Authorization Found: Error: Dynamic server usage: Page couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error

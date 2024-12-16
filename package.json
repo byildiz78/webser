@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "npx concurrently \"next dev\" \"node bull-board-server.js\"",
-    "copy-files": "node scripts/copy-files.js",
-    "build": "next build && npm run copy-files",
-    "start": "next start",
+    "clean": "rimraf .next",
+    "build": "npm run clean && set NODE_ENV=development && next build && npm run copy-files",
+    "start": "set NODE_ENV=development && node .next/standalone/server.js",
     "lint": "next lint",
+    "copy-files": "node scripts/copy-files.js",
     "bull-board": "node bull-board-server.js"
   },
   "dependencies": {
@@ -92,5 +93,8 @@
     "typescript": "5.2.2",
     "vaul": "^0.9.9",
     "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "fs-extra": "^11.2.0"
   }
 }

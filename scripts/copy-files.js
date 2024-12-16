@@ -1,46 +1,81 @@
 // scripts/copy-files.js
-
 const fs = require('fs-extra');
 const path = require('path');
 
 async function copyFiles() {
   try {
-    // Static dosyalarını kopyala
-    await fs.copy(
-      path.join('.next', 'static'),
-      path.join('.next', 'standalone', '.next', 'static')
-    );
+    const standalone = path.join('.next', 'standalone');
+    
+    // Tüm kopyalama işlemleri için hedef dizinlerin varlığını kontrol et
+    await fs.ensureDir(path.join(standalone, '.next', 'static'));
+    await fs.ensureDir(path.join(standalone, 'public'));
 
-    // Public klasörünü kopyala
-    await fs.copy(
-      path.join('public'),
-      path.join('.next', 'standalone', 'public')
-    );
+    // Kopyalama işlemleri
+    const copyTasks = [
+      // Static dosyaları
+      {
+        src: path.join('.next', 'static'),
+        dest: path.join(standalone, '.next', 'static'),
+        name: 'static files'
+      },
+      // Public klasörü
+      {
+        src: 'public',
+        dest: path.join(standalone, 'public'),
+        name: 'public folder'
+      },
+      // AppSettings
+      {
+        src: 'appSettings.json',
+        dest: path.join(standalone, 'appSettings.json'),
+        name: 'appSettings.json'
+      },
+      // Public içindeki appSettings
+      {
+        src: 'appSettings.json',
+        dest: path.join(standalone, 'public', 'appSettings.json'),
+        name: 'public appSettings.json'
+      }
+    ];
 
-    // AppSettings dosyasını kopyala
-    await fs.copy(
-        path.join('appSettings.json'),
-        path.join('.next', 'standalone', 'public', 'appSettings.json')
-        );
-
-    // .env dosyalarını kopyala
-    const envFiles = ['.env', '.env.local', '.env.production'];
-    for (const envFile of envFiles) {
+    // Tüm kopyalama işlemlerini gerçekleştir
+    for (const task of copyTasks) {
       try {
-        if (fs.existsSync(envFile)) {
-          await fs.copy(
-            envFile,
-            path.join('.next', 'standalone', '.env')
-          );
-          break; // İlk bulunan .env dosyasını kopyaladıktan sonra döngüden çık
+        if (fs.existsSync(task.src)) {
+          await fs.copy(task.src, task.dest);
+          console.log(`✅ ${task.name} başarıyla kopyalandı`);
+        } else {
+          console.warn(`⚠️ ${task.name} bulunamadı, atlanıyor`);
         }
       } catch (err) {
-        console.error(`${envFile} kopyalanırken hata oluştu:`, err);
+        console.error(`❌ ${task.name} kopyalanırken hata:`, err);
       }
     }
 
+    // .env dosyalarını kopyala
+    const envFiles = ['.env.production.local', '.env.production', '.env.local', '.env'];
+    let envCopied = false;
+
+    for (const envFile of envFiles) {
+      if (!envCopied && fs.existsSync(envFile)) {
+        try {
+          await fs.copy(envFile, path.join(standalone, '.env'));
+          console.log(`✅ ${envFile} başarıyla kopyalandı`);
+          envCopied = true;
+        } catch (err) {
+          console.error(`❌ ${envFile} kopyalanırken hata:`, err);
+        }
+      }
+    }
+
+    if (!envCopied) {
+      console.warn('⚠️ Hiçbir .env dosyası bulunamadı');
+    }
+
+    console.log('✨ Tüm dosya kopyalama işlemleri tamamlandı');
+
   } catch (err) {
-    console.error('Dosya kopyalama hatası:', err);
+    console.error('❌ Kritik hata:', err);
     process.exit(1);
   }
 }
