@@ -11,7 +11,22 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   images: { unoptimized: true },
-  transpilePackages: ['swagger-ui-react']
+  transpilePackages: ['swagger-ui-react'],
+  experimental: {
+    outputFileTracingRoot: process.cwd(),
+    serverActions: true,
+  },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // client-side specific config
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+      };
+    }
+    return config;
+  },
 };
 
 module.exports = nextConfig;
