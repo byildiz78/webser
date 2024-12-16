@@ -21,7 +21,7 @@ export function DatabaseSelect({
       <select
         className="w-full bg-gray-700/50 text-white rounded-lg p-3 border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 outline-none"
         onChange={(e) => {
-          const selected = databases.find(db => db.databaseId === parseInt(e.target.value));
+          const selected = databases.find(db => db.databaseId === e.target.value);
           onDatabaseChange(selected);
         }}
         value={selectedDatabase?.databaseId || ''}
