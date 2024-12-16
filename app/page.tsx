@@ -224,7 +224,7 @@ export default function Home() {
             </div>
 
             {/* SQL Query Section */}
-            <div className="max-w-4xl mx-auto">
+            {/* <div className="max-w-4xl mx-auto">
               <div className="bg-gray-800/30 backdrop-blur-lg p-8 rounded-xl border border-gray-700/50 shadow-lg">
                 <h2 className="text-2xl font-bold mb-6">SQL Sorgu Arayüzü</h2>
                 <div className="mb-4">
@@ -240,7 +240,7 @@ export default function Home() {
                 </div>
                 <SqlQueryForm selectedDatabase={selectedDatabase} />
               </div>
-            </div>
+            </div> */}
           </>
 
         )}
