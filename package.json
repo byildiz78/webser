@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "npx concurrently \"next dev\" \"node bull-board-server.js\"",
+    "dev": "npx concurrently \"next dev -p 5010\" \"node bull-board-server.js\"",
     "clean": "rimraf .next",
     "build": "npm run clean && set NODE_ENV=development && next build && npm run copy-files",
-    "start": "set NODE_ENV=development && node .next/standalone/server.js",
+    "start": "set NODE_ENV=development && node .next/standalone/server.js -p 5010",
     "lint": "next lint",
     "copy-files": "node scripts/copy-files.js",
     "bull-board": "node bull-board-server.js"

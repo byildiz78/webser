@@ -36,7 +36,8 @@ export async function GET(
             return {
                 tenantId: item.tenantId,
                 databaseId: item.databaseId.toString(),
-                apiKey: item.apiKey
+                apiKey: item.apiKey,
+                database: item.database
             } as DbResponse
         });
 
