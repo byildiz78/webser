@@ -3,7 +3,7 @@ import path from 'path';
 import { AppSettings } from '@/types/config';
 import { NextRequest } from 'next/server';
 
-function writeToLog(message: string) {
+export function writeToLog(message: string) {
     const logPath = path.join(process.cwd(), 'app.log');
     const timestamp = new Date().toISOString();
     const logMessage = `${timestamp} - ${message}\n`;
