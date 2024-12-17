@@ -1,15 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getAppSettings } from './lib/settings';
-import fs from 'fs';
-import path from 'path';
-
-function writeToLog(message: string) {
-    const logPath = path.join(process.cwd(), 'middleware.log');
-    const timestamp = new Date().toISOString();
-    const logMessage = `${timestamp} - ${message}\n`;
-    fs.appendFileSync(logPath, logMessage);
-}
 
 export const config = {
     matcher: ['/api/:path*']
@@ -69,12 +60,6 @@ export async function middleware(request: NextRequest) {
     const tenantConnection = appSettings.connections.find(
         connection => connection.databaseId === parseInt(databaseId) && connection.apiKey === apiKey
     );
-
-    // Log bilgilerini kaydet
-    writeToLog(`Database ID: ${databaseId}`);
-    writeToLog(`API Key: ${apiKey}`);
-    writeToLog(`Connections: ${JSON.stringify(appSettings.connections)}`);
-    writeToLog(`Found Connection: ${JSON.stringify(tenantConnection)}`);
 
     if (!tenantConnection) {
         return new NextResponse(
