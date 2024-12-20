@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { getAppSettings } from './lib/settings';
+import appSettings from './appSettings.json'
 
 export const config = {
     matcher: ['/api/:path*']
@@ -56,7 +56,6 @@ export async function middleware(request: NextRequest) {
     }
 
     const apiKey = authHeader.replace('Bearer', '').trim();
-    const appSettings = getAppSettings();
     const tenantConnection = appSettings.connections.find(
         connection => connection.databaseId === parseInt(databaseId) && connection.apiKey === apiKey
     );
