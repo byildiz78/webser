@@ -5,10 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import axios from "axios";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
+    const router = useRouter();
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>("");
+    const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
 
     const onSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -16,11 +21,20 @@ export default function LoginPage() {
         setError("");
 
         try {
-            // Simulating API call
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            // Add your actual API logic here
+            const response = await axios.post("/api/auth/login", {
+                username,
+                password
+            });
+            
+            if (response.data) {
+                router.push("/");
+            }
         } catch (err) {
-            setError("Authentication failed. Please try again.");
+            if(err.response.status === 401) {
+                setError("Kullanıcı adı veya sifre yanlıs.");
+            }else{
+                setError("Giriş Yapılırken Bir Hata Olustu.");
+            }
         } finally {
             setIsLoading(false);
         }
@@ -44,17 +58,19 @@ export default function LoginPage() {
 
                         <Card className="bg-gray-800/30 backdrop-blur-lg border border-gray-700/50 shadow-lg">
                             <CardContent className="pt-6">
-                                <div className="grid gap-4">
+                                <form onSubmit={onSubmit} className="grid gap-4">
                                     <div className="grid gap-2">
-                                        <Label htmlFor="email" className="text-gray-200">Email</Label>
+                                        <Label htmlFor="username" className="text-gray-200">Username</Label>
                                         <Input
-                                            id="email"
-                                            placeholder="name@example.com"
-                                            type="email"
+                                            id="username"
+                                            placeholder="Enter your username"
+                                            type="text"
                                             autoCapitalize="none"
-                                            autoComplete="email"
+                                            autoComplete="username"
                                             autoCorrect="off"
                                             disabled={isLoading}
+                                            value={username}
+                                            onChange={(e) => setUsername(e.target.value)}
                                             className="bg-gray-900/50 border-gray-700 text-gray-200"
                                         />
                                     </div>
@@ -63,9 +79,12 @@ export default function LoginPage() {
                                         <Input
                                             id="password"
                                             type="password"
+                                            placeholder="Enter your password"
                                             autoCapitalize="none"
                                             autoComplete="current-password"
                                             disabled={isLoading}
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
                                             className="bg-gray-900/50 border-gray-700 text-gray-200"
                                         />
                                     </div>
@@ -77,9 +96,9 @@ export default function LoginPage() {
                                     )}
 
                                     <Button
+                                        type="submit"
                                         className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
                                         disabled={isLoading}
-                                        onClick={onSubmit}
                                     >
                                         {isLoading ? (
                                             <div className="flex items-center space-x-2">
@@ -90,7 +109,7 @@ export default function LoginPage() {
                                             "Giriş Yap"
                                         )}
                                     </Button>
-                                </div>
+                                </form>
                             </CardContent>
                         </Card>
                     </div>

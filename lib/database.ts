@@ -90,7 +90,7 @@ export class Database {
     public async testDatabaseConnection(databaseId: string, apiKey: string): Promise<boolean> {
         try {
             const result = await this.query<{test: number}>('SELECT 1 as test', databaseId, apiKey);
-            return result.data.length > 0 && result.error === '';
+            return (result?.totalRows || 0) > 0 && result.error === '';
         } catch (error) {
             return false;
         }
