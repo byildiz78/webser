@@ -12,10 +12,12 @@ export type SQLConfig = config & DatabaseConfig & {
 
 export type Admin = {
     apiKey: string;
+    username: string;
+    password: string;
 }
 
 export type AppSettings = {
-    admin: Admin,
+    admins: Admin[],
     connections: SQLConfig[]
 }
 
