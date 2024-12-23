@@ -26,7 +26,7 @@ export default function LoginPage() {
                 password
             });
             
-            if (response.data) {
+            if (response.status === 200) {
                 router.push("/");
             }
         } catch (err) {

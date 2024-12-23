@@ -22,7 +22,7 @@ export async function POST(
 
         const appSettings = getAppSettings();
 
-
+        console.log('appSettings', appSettings);
         const admin = appSettings.admins.find((admin) =>
             admin.username === username && admin.password === password
         );
