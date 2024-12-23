@@ -34,7 +34,7 @@ const bigqueryProcessor = async (job: any) => {
     const endTime = Date.now();
     const executionTime = endTime - startTime;
 
-    console.log(`Query execution completed for job ${job.id}. Found ${queryResult?.length || 0} rows.`);
+    console.log(`Query execution completed for job ${job.id}. Found ${queryResult?.totalRows || 0} rows.`);
 
     // Return both metadata and results
     const result = {

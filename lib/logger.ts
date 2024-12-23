@@ -1,21 +1,22 @@
 import { Database } from "./database";
-import { Q_INSERT_WEBSERVICELOG_TABLE } from "./queries";
+import { Q_INSERT_WEBSERVICELOG_TABLE, Q_CREATE_WEBSERVICELOG_TABLE } from "./queries";
 
 interface ErrorLogContext {
     queueName: string;
     jobId?: string;
     jobData: any;
 }
-/*
-export async function initializeLogTable() {
+
+export async function initializeLogTable(databaseId: string, apiKey: string) {
     try {
-        await executeQuery(Q_CREATE_WEBSERVICELOG_TABLE);
+        const database = new Database();
+        await database.query(Q_CREATE_WEBSERVICELOG_TABLE, databaseId, apiKey);
     } catch (error) {
         console.error('Error Creating Log Table', error);
         throw error;
     }
 }
-*/
+
 
 export async function logApiRequest({
     endpoint,
@@ -53,6 +54,7 @@ export async function logApiRequest({
     userAgent?: string | null;
 }) {
     try {
+        await initializeLogTable(databaseId, apiKey);
         const params = {
             endpoint,
             apiKey,
