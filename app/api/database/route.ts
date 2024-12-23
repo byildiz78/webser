@@ -26,7 +26,7 @@ export async function GET(
             );
         }
         const settings = getAppSettings();
-        if (settings.admin.apiKey.toString() !== apiKey.toString()) {
+        if (!settings.admins.find((admin) => admin.apiKey.toString() === apiKey.toString())) {
             return NextResponse.json(
                 { error: `Not Authorized` },
                 { status: 401 });
